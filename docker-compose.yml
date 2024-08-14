@@ -1,0 +1,88 @@
+# version: "3.8"
+# References: https://www.emqx.io/docs/en/latest/deploy/install-docker.html
+services:
+  # MQTT listeners
+  mqtt-listener:
+    image: ibr/mqtt-listener:latest
+    # logging:
+    #   driver: none
+    build:
+      context: .
+      dockerfile: IBR.MqttListener/Dockerfile
+    environment:
+      Logging__LogLevel__Default: Information
+      MqttClientOptions__Tcp__Server: node1.emqx.io
+      MqttClientOptions__Tcp__NoDelay: true
+      MqttClientOptions__Tcp__BufferSize: 40960
+      MqttClientOptions__CleanSession: false
+      MqttClientOptions__SessionExpiryInterval: 120
+      MqttClientOptions__ReconnectDelaySecs: 15
+      MqttClientOptions__Topic: $$share/ahi/projectId/+/devices/+/telemetry
+      MqttClientOptions__Qos: 1
+    networks:
+      - ibr-bridge
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: "1"
+          memory: "250M"
+    depends_on:
+      emqx:
+        condition: service_healthy
+
+  # MQTT publishers
+  mqtt-publisher:
+    image: ibr/mqtt-publisher:latest
+    build:
+      context: .
+      dockerfile: IBR.MqttPublisher/Dockerfile
+    environment:
+      - MqttClientOptions__TcpServer=node1.emqx.io
+      - MqttClientOptions__ApiBase=http://node1.emqx.io:18083
+      - MqttClientOptions__TopicFormat=projectId/{0}/devices/{1}/telemetry
+    stdin_open: true
+    tty: true
+    networks:
+      - ibr-bridge
+    deploy:
+      replicas: 1
+    depends_on:
+      emqx:
+        condition: service_healthy
+
+  # EMQX nodes
+  emqx:
+    image: emqx/emqx:5.6.0
+    container_name: emqx
+    environment:
+      EMQX_DASHBOARD__DEFAULT_USERNAME: "admin"
+      EMQX_DASHBOARD__DEFAULT_PASSWORD: "abc@123"
+      EMQX_NODE_NAME: "emqx@node1.emqx.io"
+      EMQX_MQTT__MAX_MQUEUE_LEN: 1000000
+      EMQX_MQTT__MAX_INFLIGHT: 128
+      EMQX_MQTT__RETRY_INTERVAL: "300s"
+      EMAX_API_KEY__BOOTSTRAP_FILE: /opt/emqx/etc/api_key.conf
+    volumes:
+      - ./resources/emqx/emqx.conf:/opt/emqx/etc/emqx.conf
+      - ./resources/emqx/api_key.conf:/opt/emqx/etc/api_key.conf
+    healthcheck:
+      test: ["CMD", "/opt/emqx/bin/emqx", "ctl", "status"]
+      interval: 5s
+      timeout: 25s
+      retries: 5
+    networks:
+      ibr-bridge:
+        aliases:
+          - node1.emqx.io
+    ports:
+      - 1883:1883
+      - 8083:8083
+      - 8084:8084
+      - 8883:8883
+      - 18083:18083
+      - 5684:5683/udp
+
+networks:
+  ibr-bridge:
+    driver: bridge

@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBR.MqttListener", "IBR.MqttListener\IBR.MqttListener.csproj", "{327A02C4-845E-42EB-AA5F-60DC5B0A772C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBR.MqttPublisher", "IBR.MqttPublisher\IBR.MqttPublisher.csproj", "{51921CB7-7147-42EF-9983-169D6ECABD0B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBR.Shared", "IBR.Shared\IBR.Shared.csproj", "{687C460B-39CC-4078-8DE9-2048B16A7DF0}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{327A02C4-845E-42EB-AA5F-60DC5B0A772C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{327A02C4-845E-42EB-AA5F-60DC5B0A772C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{327A02C4-845E-42EB-AA5F-60DC5B0A772C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{327A02C4-845E-42EB-AA5F-60DC5B0A772C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{51921CB7-7147-42EF-9983-169D6ECABD0B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{51921CB7-7147-42EF-9983-169D6ECABD0B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{51921CB7-7147-42EF-9983-169D6ECABD0B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{51921CB7-7147-42EF-9983-169D6ECABD0B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{687C460B-39CC-4078-8DE9-2048B16A7DF0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{687C460B-39CC-4078-8DE9-2048B16A7DF0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{687C460B-39CC-4078-8DE9-2048B16A7DF0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{687C460B-39CC-4078-8DE9-2048B16A7DF0}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
