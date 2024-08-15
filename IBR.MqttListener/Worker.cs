@@ -117,6 +117,7 @@ public class Worker : BackgroundService
             e.AutoAcknowledge = false;
             var payload = e.ApplicationMessage.PayloadSegment.Array;
             var payloadStr = Encoding.UTF8.GetString(payload!);
+            Console.WriteLine(payloadStr);
             await e.AcknowledgeAsync(cancellationToken: _stoppingToken);
         }
         catch (Exception ex)

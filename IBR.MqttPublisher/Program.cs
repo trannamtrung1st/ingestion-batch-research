@@ -1,8 +1,11 @@
-﻿using System.Net.Http.Headers;
+﻿using System.Globalization;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using CsvHelper;
+using CsvHelper.Configuration;
 using IBR.Shared.Helpers;
 using MQTTnet;
 using MQTTnet.Client;
@@ -37,8 +40,9 @@ while (!cancellationToken.IsCancellationRequested)
 {
     Console.WriteLine("1. Publish single");
     Console.WriteLine("2. Publish batch using REST API");
+    Console.WriteLine("3. Publish batch using plaintext csv");
     Console.Write("Choose an option: ");
-    if (!int.TryParse(Console.ReadLine(), out var opt) || opt < 1 || opt > 2)
+    if (!int.TryParse(Console.ReadLine(), out var opt) || opt < 1 || opt > 3)
     {
         Console.WriteLine("Wrong option!");
         continue;
@@ -58,6 +62,14 @@ while (!cancellationToken.IsCancellationRequested)
                     Console.Write("Input batch size: ");
                     var batchSize = int.TryParse(Console.ReadLine(), out var bValue) ? bValue : 10;
                     await PublishBatchUsingApi(batchSize);
+                    Console.WriteLine("Done!");
+                    break;
+                }
+            case 3:
+                {
+                    Console.Write("Input batch size: ");
+                    var batchSize = int.TryParse(Console.ReadLine(), out var bValue) ? bValue : 10;
+                    await PublishBatchUsingPlaintextCsv(batchSize);
                     Console.WriteLine("Done!");
                     break;
                 }
@@ -82,7 +94,7 @@ async Task PublishSingle(int i = 0)
 
 async Task PublishBatchUsingApi(int batchSize)
 {
-    List<MqttPublishBatchPayload> batch = [];
+    List<MqttPublishPayload> batch = [];
     for (var i = 0; i < batchSize; i++)
     {
         batch.Add(new()
@@ -98,7 +110,50 @@ async Task PublishBatchUsingApi(int batchSize)
     resp.EnsureSuccessStatusCode();
 }
 
-IReadOnlyDictionary<string, object> BuildPayload(int i, int noOfMetrics = 10)
+async Task PublishBatchUsingPlaintextCsv(int batchSize)
+{
+    using var memStream = new MemoryStream();
+    using var streamWriter = new StreamWriter(memStream);
+    using var csvWriter = new CsvWriter(streamWriter, configuration: new CsvConfiguration(CultureInfo.InvariantCulture)
+    {
+        NewLine = Environment.NewLine
+    });
+    var dict = BuildPayload(0);
+    csvWriter.WriteField(dict["deviceId"]);
+    await csvWriter.NextRecordAsync();
+    dict.Remove("deviceId");
+
+    async Task WriteRecord<T>(IEnumerable<T> record)
+    {
+        foreach (var value in record)
+            csvWriter.WriteField(value);
+        await csvWriter.NextRecordAsync();
+    }
+
+    await WriteRecord(dict.Keys);
+
+    for (var i = 0; i < batchSize; i++)
+    {
+        await WriteRecord(dict.Values);
+        dict = BuildPayload(0);
+        dict.Remove("deviceId");
+    }
+
+    await csvWriter.FlushAsync();
+    memStream.Seek(0, SeekOrigin.Begin);
+    var payload = new MqttPublishPayload()
+    {
+        Payload = Encoding.UTF8.GetString(memStream.ToArray()),
+        PayloadEncoding = "plain",
+        Topic = string.Format(topicFormat, 0, 0),
+        Qos = qos
+    };
+
+    var resp = await httpClient.PostAsJsonAsync("/api/v5/publish", payload);
+    resp.EnsureSuccessStatusCode();
+}
+
+Dictionary<string, object> BuildPayload(int i, int noOfMetrics = 10)
 {
     var dict = new Dictionary<string, object>();
     dict["deviceId"] = $"device-{i}";
@@ -108,7 +163,7 @@ IReadOnlyDictionary<string, object> BuildPayload(int i, int noOfMetrics = 10)
     return dict;
 }
 
-class MqttPublishBatchPayload
+class MqttPublishPayload
 {
     [JsonPropertyName("payload_encoding")]
     public required string PayloadEncoding { get; set; }
