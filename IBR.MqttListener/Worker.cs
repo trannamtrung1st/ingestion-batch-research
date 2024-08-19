@@ -1,6 +1,14 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using CsvHelper;
+using CsvHelper.Configuration;
 using DeviceId;
+using IBR.Shared.Extensions;
+using IBR.Shared.Models;
+using JsonPath;
 using MQTTnet;
 using MQTTnet.Client;
 using MQTTnet.Extensions.ManagedClient;
@@ -10,6 +18,7 @@ namespace IBR.MqttListener;
 
 public class Worker : BackgroundService
 {
+    private static readonly JsonNodeJPath _jPathValueSystem = new();
     private readonly ILogger<Worker> _logger;
     private readonly IConfiguration _configuration;
     private readonly ConcurrentBag<IManagedMqttClient> _mqttClients;
@@ -115,14 +124,122 @@ public class Worker : BackgroundService
         try
         {
             e.AutoAcknowledge = false;
-            var payload = e.ApplicationMessage.PayloadSegment.Array;
-            var payloadStr = Encoding.UTF8.GetString(payload!);
-            Console.WriteLine(payloadStr);
+            var payload = e.ApplicationMessage.PayloadSegment.Array!;
+            var payloadType = e.ApplicationMessage.UserProperties?.Find(p => p.Name == "payload_type");
+            var payloadInfo = e.ApplicationMessage.UserProperties?.Find(p => p.Name == "payload_info");
+
+            switch (payloadType?.Value)
+            {
+                case "single":
+                default:
+                    {
+                        HandleSingle(payload);
+                        break;
+                    }
+                case "csv":
+                    {
+                        await HandleCsv(payload);
+                        break;
+                    }
+                case "payload_with_json_path":
+                    {
+                        HandlePayloadWithJsonPath(payload, payloadInfo?.Value);
+                        break;
+                    }
+            }
+
             await e.AcknowledgeAsync(cancellationToken: _stoppingToken);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, ex.Message);
+            await e.AcknowledgeAsync(cancellationToken: _stoppingToken);
+        }
+    }
+
+    private static void HandleSingle(byte[] payload)
+    {
+        var payloadStr = Encoding.UTF8.GetString(payload);
+        Console.WriteLine(payloadStr);
+    }
+
+    private static void HandlePayloadWithJsonPath(byte[] payload, string? payloadInfoStr)
+    {
+        if (payloadInfoStr is null) return;
+        var payloadInfo = JsonSerializer.Deserialize<JsonPathPayloadInfo>(payloadInfoStr)
+            ?? throw new ArgumentException(message: null, nameof(payloadInfoStr));
+        var jsonStr = Encoding.UTF8.GetString(payload);
+        var rootNode = JsonNode.Parse(payload);
+        var jPathContext = _jPathValueSystem.CreateContext();
+
+        var deviceId = jPathContext
+            .SelectNodes(obj: rootNode, expr: payloadInfo.DeviceId, resultor: (value, _) => (value as JsonValue)?.GetValue<string>())
+            .FirstOrDefault();
+        var metricKeys = jPathContext
+            .SelectNodes(obj: rootNode, expr: payloadInfo.MetricKey, resultor: (value, _) => value as string)
+            .ToArray();
+
+        foreach (var metricKey in metricKeys)
+        {
+            var timestamps = jPathContext
+                .SelectNodes(obj: rootNode, expr: payloadInfo.Timestamp.Replace("{metric_key}", metricKey),
+                    resultor: (rawValue, _) =>
+                    {
+                        var value = (rawValue as JsonValue)?.GetUnderlyingValue();
+                        if (value is string valueStr)
+                        {
+                            if (DateTime.TryParse(valueStr, out DateTime timestamp))
+                                return timestamp;
+                            if (long.TryParse(valueStr, out long lValue1))
+                                return DateTimeOffset.FromUnixTimeMilliseconds(lValue1).UtcDateTime;
+                        }
+
+                        if (value is double iValue)
+                            return DateTimeOffset.FromUnixTimeMilliseconds((long)iValue).UtcDateTime;
+
+                        throw new FormatException();
+                    })
+                .ToArray();
+
+            var values = jPathContext
+                .SelectNodes(obj: rootNode, expr: payloadInfo.Value.Replace("{metric_key}", metricKey),
+                    resultor: (value, _) => (value as JsonValue)?.GetUnderlyingValue())
+                .ToArray();
+
+            int[]? qualities = null;
+            if (payloadInfo.Quality is not null)
+            {
+                qualities = jPathContext
+                    .SelectNodes(obj: rootNode, expr: payloadInfo.Quality.Replace("{metric_key}", metricKey),
+                        resultor: (value, _) => (value as JsonValue)?.GetValue<int>() ?? 0)
+                    .ToArray();
+            }
+
+            for (int i = 0; i < timestamps.Length; i++)
+            {
+                var ts = timestamps[i];
+                var value = values[i];
+                var quality = qualities != null ? qualities[i] : default(int?);
+                var series = new TimeSeries(ts, value, quality);
+                Console.WriteLine(series);
+            }
+        }
+    }
+
+    private static async Task HandleCsv(byte[] payload)
+    {
+        using var memStream = new MemoryStream(payload);
+        using var streamReader = new StreamReader(memStream);
+        using var csvReader = new CsvReader(reader: streamReader, configuration: new CsvConfiguration(CultureInfo.InvariantCulture)
+        {
+            NewLine = Environment.NewLine
+        });
+
+        while (await csvReader.ReadAsync())
+        {
+            for (int i = 0; i < csvReader.ColumnCount; i++)
+                Console.Write(csvReader[i] + "\t");
+            Console.WriteLine();
         }
     }
 
@@ -134,4 +251,89 @@ public class Worker : BackgroundService
             client.Dispose();
         _mqttClients.Clear();
     }
+}
+
+public class JsonNodeJPath : IJsonPathValueSystem
+{
+    private static JsonNode GetJsonNode(object value)
+    {
+        if (value is not JsonNode jNode)
+            throw new InvalidOperationException();
+        return jNode;
+    }
+
+    private static JsonObject? GetJsonObject(object value)
+    {
+        var jNode = GetJsonNode(value);
+        return jNode as JsonObject;
+    }
+
+    private static JsonArray? GetJsonArray(object value)
+    {
+        var jNode = GetJsonNode(value);
+        return jNode as JsonArray;
+    }
+
+    public IEnumerable<string> GetMembers(object value)
+    {
+        JsonObject? jObj = GetJsonObject(value);
+
+        IEnumerable<string>? members = jObj?.ToDictionary().Keys;
+
+        return members ?? [];
+    }
+
+    public object? GetMemberValue(object value, string member)
+    {
+        var jNode = GetJsonNode(value);
+
+        if (jNode is JsonObject jObj)
+            return jObj?.TryGetPropertyValue(member, out var jsonNode) == true ? jsonNode : default;
+
+        if (jNode is JsonArray jArr)
+            return int.TryParse(member, out var idx) ? jArr[idx] : default;
+
+        return default;
+    }
+
+    public bool HasMember(object value, string member)
+    {
+        var jNode = GetJsonNode(value);
+
+        if (jNode is JsonObject jObj)
+            return jObj?.TryGetPropertyValue(member, out _) == true;
+
+        if (jNode is JsonArray jArr)
+            return int.TryParse(member, out var idx) && idx < jArr.Count;
+
+        return false;
+    }
+
+    public bool IsArray(object value)
+    {
+        return value is JsonArray;
+    }
+
+    public bool IsObject(object value)
+    {
+        return value is JsonObject;
+    }
+
+    public bool IsPrimitive(object value)
+    {
+        return value is JsonValue;
+    }
+
+    public int GetCount(object value)
+    {
+        JsonArray? jArr = GetJsonArray(value);
+
+        return jArr?.Count ?? 0;
+    }
+
+    public JsonPathContext CreateContext() => new()
+    {
+        ValueSystem = this
+    };
+
 }

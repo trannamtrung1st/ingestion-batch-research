@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard1.5</TargetFramework>
+    <PackageId>JsonPathLib</PackageId>
+    <VersionPrefix>0.6.0</VersionPrefix>
+    <Copyright>Copyright 2007 Atif Aziz. Portions Copyright 2007 Stefan Goessner</Copyright>
+    <Description>Stand-alone JSONPath (XPath-like syntax for JSON) Library</Description>
+    <Authors>Atif Aziz</Authors>
+    <Owners>Atif Aziz</Owners>
+    <Company></Company>
+    <PackageProjectUrl>https://github.com/atifaziz/JSONPath</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/atifaziz/JSONPath</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>json jsonpath xpath</PackageTags>
+    <PackageLicenseUrl>https://github.com/atifaziz/JSONPath/blob/master/COPYING.txt</PackageLicenseUrl>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <OutputPath>..\bin\Debug\</OutputPath>
+    <LangVersion>7</LangVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <OutputPath>..\bin\Release\</OutputPath>
+  </PropertyGroup>
+
+</Project>

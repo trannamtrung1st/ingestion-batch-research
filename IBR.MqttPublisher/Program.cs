@@ -7,6 +7,7 @@ using System.Text.Json.Serialization;
 using CsvHelper;
 using CsvHelper.Configuration;
 using IBR.Shared.Helpers;
+using IBR.Shared.Models;
 using MQTTnet;
 using MQTTnet.Client;
 using MQTTnet.Protocol;
@@ -32,6 +33,7 @@ using var httpClient = new HttpClient()
 httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", basicAuth);
 var mqttClient = factory.CreateMqttClient();
 var options = new MqttClientOptionsBuilder()
+    .WithProtocolVersion(MQTTnet.Formatter.MqttProtocolVersion.V500)
     .WithTcpServer(tcpServer)
     .Build();
 await mqttClient.ConnectAsync(options, cancellationToken);
@@ -41,10 +43,12 @@ while (!cancellationToken.IsCancellationRequested)
     Console.WriteLine("1. Publish single");
     Console.WriteLine("2. Publish batch using REST API");
     Console.WriteLine("3. Publish batch using plaintext csv");
-    Console.WriteLine("4. Publish batch using row-based payload");
-    Console.WriteLine("5. Publish batch using columnar payload");
+    Console.WriteLine("4. Publish batch using row-based payload (JSON path)");
+    Console.WriteLine("5. Publish batch using columnar payload (JSON path)");
+    Console.WriteLine("6. Publish batch using row-based payload (JSON schema)");
+    Console.WriteLine("7. Publish batch using columnar payload (JSON schema)");
     Console.Write("Choose an option: ");
-    if (!int.TryParse(Console.ReadLine(), out var opt) || opt < 1 || opt > 5)
+    if (!int.TryParse(Console.ReadLine(), out var opt) || opt < 1 || opt > 7)
     {
         Console.WriteLine("Invalid option!");
         continue;
@@ -80,7 +84,8 @@ while (!cancellationToken.IsCancellationRequested)
                     Console.Write("Input batch size: ");
                     var batchSize = int.TryParse(Console.ReadLine(), out var bValue) ? bValue : 10;
                     var payload = BuildRowBasedBatchPayload(0, batchSize);
-                    await PublishUsingSingleApi(0, payloadStr: JsonSerializer.Serialize(payload));
+                    var payloadInfo = BuildRowBasedJsonPath();
+                    await PublishUsingSingleApi(0, payloadStr: JsonSerializer.Serialize(payload), payloadType: "payload_with_json_path", payloadInfo: payloadInfo);
                     Console.WriteLine("Done!");
                     break;
                 }
@@ -89,7 +94,28 @@ while (!cancellationToken.IsCancellationRequested)
                     Console.Write("Input batch size: ");
                     var batchSize = int.TryParse(Console.ReadLine(), out var bValue) ? bValue : 10;
                     var payload = BuildColumnarBatchPayload(0, batchSize);
-                    await PublishUsingSingleApi(0, payloadStr: JsonSerializer.Serialize(payload));
+                    var payloadInfo = BuildColumnarJsonPath();
+                    await PublishUsingSingleApi(0, payloadStr: JsonSerializer.Serialize(payload), payloadType: "payload_with_json_path", payloadInfo: payloadInfo);
+                    Console.WriteLine("Done!");
+                    break;
+                }
+            case 6:
+                {
+                    Console.Write("Input batch size: ");
+                    var batchSize = int.TryParse(Console.ReadLine(), out var bValue) ? bValue : 10;
+                    var payload = BuildRowBasedBatchPayload(0, batchSize);
+                    var payloadInfo = BuildRowBasedJsonSchema();
+                    await PublishUsingSingleApi(0, payloadStr: JsonSerializer.Serialize(payload), payloadType: "payload_with_schema", payloadInfo: payloadInfo);
+                    Console.WriteLine("Done!");
+                    break;
+                }
+            case 7:
+                {
+                    Console.Write("Input batch size: ");
+                    var batchSize = int.TryParse(Console.ReadLine(), out var bValue) ? bValue : 10;
+                    var payload = BuildColumnarBatchPayload(0, batchSize);
+                    var payloadInfo = BuildColumnarJsonSchema();
+                    await PublishUsingSingleApi(0, payloadStr: JsonSerializer.Serialize(payload), payloadType: "payload_with_schema", payloadInfo: payloadInfo);
                     Console.WriteLine("Done!");
                     break;
                 }
@@ -108,6 +134,7 @@ async Task PublishSingle(int i = 0)
         .WithTopic(string.Format(topicFormat, i, i))
         .WithPayload(messagePayload)
         .WithQualityOfServiceLevel(qos)
+        .WithUserProperty("payload_type", "single")
         .Build();
     await mqttClient.PublishAsync(message, cancellationToken);
 }
@@ -122,7 +149,14 @@ async Task PublishUsingBulkApi(int batchSize)
             Payload = JsonSerializer.Serialize(BuildPayload(i)),
             PayloadEncoding = "plain",
             Topic = string.Format(topicFormat, i, i),
-            Qos = qos
+            Qos = qos,
+            Properties = new()
+            {
+                UserProperties = new Dictionary<string, string>()
+                {
+                    ["payload_type"] = "single"
+                }
+            }
         });
     }
 
@@ -166,21 +200,36 @@ async Task PublishBatchUsingPlaintextCsv(int batchSize)
         Payload = Encoding.UTF8.GetString(memStream.ToArray()),
         PayloadEncoding = "plain",
         Topic = string.Format(topicFormat, 0, 0),
-        Qos = qos
+        Qos = qos,
+        Properties = new MqttRequestProperties
+        {
+            UserProperties = new Dictionary<string, string>()
+            {
+                ["payload_type"] = "csv"
+            }
+        }
     };
 
     var resp = await httpClient.PostAsJsonAsync("/api/v5/publish", payload);
     resp.EnsureSuccessStatusCode();
 }
 
-async Task PublishUsingSingleApi(int i, string payloadStr)
+async Task PublishUsingSingleApi(int i, string payloadStr, string payloadType, string payloadInfo)
 {
     MqttPublishPayload batch = new()
     {
         Payload = payloadStr,
         PayloadEncoding = "plain",
         Topic = string.Format(topicFormat, i, i),
-        Qos = qos
+        Qos = qos,
+        Properties = new MqttRequestProperties()
+        {
+            UserProperties = new Dictionary<string, string>()
+            {
+                ["payload_type"] = payloadType,
+                ["payload_info"] = payloadInfo
+            }
+        }
     };
 
     var resp = await httpClient.PostAsJsonAsync("/api/v5/publish", batch);
@@ -191,10 +240,12 @@ Dictionary<string, object> BuildRowBasedBatchPayload(int i, int batchSize, int n
 {
     var dict = new Dictionary<string, object>();
     dict["deviceId"] = $"device-{i}";
+    var data = new Dictionary<string, object>();
+    dict["data"] = data;
     for (int m = 0; m < noOfMetrics; m++)
     {
         var arr = new object[batchSize];
-        dict[$"numeric_{i}_{m}"] = arr;
+        data[$"numeric_{i}_{m}"] = arr;
         for (int r = 0; r < batchSize; r++)
             arr[r] = new object[] { DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Random.Shared.NextDouble(), 92 };
     }
@@ -205,12 +256,14 @@ Dictionary<string, object> BuildColumnarBatchPayload(int i, int batchSize, int n
 {
     var dict = new Dictionary<string, object>();
     dict["deviceId"] = $"device-{i}";
+    var data = new Dictionary<string, object>();
+    dict["data"] = data;
     for (int m = 0; m < noOfMetrics; m++)
     {
         var ts = new long[batchSize];
         var value = new object[batchSize];
         var quality = new int[batchSize];
-        dict[$"numeric_{i}_{m}"] = new object[] { ts, value, quality };
+        data[$"numeric_{i}_{m}"] = new object[] { ts, value, quality };
 
         for (int r = 0; r < batchSize; r++)
         {
@@ -227,9 +280,45 @@ Dictionary<string, object> BuildPayload(int i, int noOfMetrics = 10)
     var dict = new Dictionary<string, object>();
     dict["deviceId"] = $"device-{i}";
     dict["timestamp"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+    var data = new Dictionary<string, object>();
     for (int m = 0; m < noOfMetrics; m++)
-        dict[$"numeric_{i}_{m}"] = Random.Shared.NextDouble();
+        data[$"numeric_{i}_{m}"] = Random.Shared.NextDouble();
+    dict["data"] = data;
     return dict;
+}
+
+string BuildRowBasedJsonPath()
+{
+    return JsonSerializer.Serialize(new JsonPathPayloadInfo
+    {
+        DeviceId = "$.deviceId",
+        MetricKey = "$.data.*~",
+        Timestamp = "$.data.{metric_key}.*[0]",
+        Value = "$.data.{metric_key}.*[1]",
+        Quality = "$.data.{metric_key}.*[2]",
+    });
+}
+
+string BuildColumnarJsonPath()
+{
+    return JsonSerializer.Serialize(new JsonPathPayloadInfo
+    {
+        DeviceId = "$.deviceId",
+        MetricKey = "$.data.*~",
+        Timestamp = "$.data.{metric_key}[0][*]",
+        Value = "$.data.{metric_key}[1][*]",
+        Quality = "$.data.{metric_key}[2][*]",
+    });
+}
+
+string BuildRowBasedJsonSchema()
+{
+    return string.Empty;
+}
+
+string BuildColumnarJsonSchema()
+{
+    return string.Empty;
 }
 
 class MqttPublishPayload
@@ -239,4 +328,11 @@ class MqttPublishPayload
     public required string Topic { get; set; }
     public MqttQualityOfServiceLevel Qos { get; set; }
     public required string Payload { get; set; }
+    public MqttRequestProperties? Properties { get; set; }
+}
+
+class MqttRequestProperties
+{
+    [JsonPropertyName("user_properties")]
+    public IReadOnlyDictionary<string, string>? UserProperties { get; set; }
 }

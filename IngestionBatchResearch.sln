@@ -9,6 +9,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBR.MqttPublisher", "IBR.Mq
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBR.Shared", "IBR.Shared\IBR.Shared.csproj", "{687C460B-39CC-4078-8DE9-2048B16A7DF0}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "JSONPath", "JSONPath", "{0F8C0D36-2C44-48F9-B010-16CAF8A24FEB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JsonPath", "JSONPath\src\JsonPath.csproj", "{50DDDA1E-4558-4B51-A556-1FE30564BFF3}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,8 +31,15 @@ Global
 		{687C460B-39CC-4078-8DE9-2048B16A7DF0}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{687C460B-39CC-4078-8DE9-2048B16A7DF0}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{687C460B-39CC-4078-8DE9-2048B16A7DF0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{50DDDA1E-4558-4B51-A556-1FE30564BFF3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{50DDDA1E-4558-4B51-A556-1FE30564BFF3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{50DDDA1E-4558-4B51-A556-1FE30564BFF3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{50DDDA1E-4558-4B51-A556-1FE30564BFF3}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{50DDDA1E-4558-4B51-A556-1FE30564BFF3} = {0F8C0D36-2C44-48F9-B010-16CAF8A24FEB}
 	EndGlobalSection
 EndGlobal

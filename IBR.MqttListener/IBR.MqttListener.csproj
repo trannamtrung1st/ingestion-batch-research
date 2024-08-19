@@ -14,4 +14,9 @@
     <PackageReference Include="MQTTnet.Extensions.ManagedClient" Version="4.3.3.952" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\IBR.Shared\IBR.Shared.csproj" />
+    <ProjectReference Include="..\JSONPath\src\JsonPath.csproj" />
+  </ItemGroup>
+
 </Project>
