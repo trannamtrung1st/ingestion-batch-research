@@ -125,6 +125,7 @@ public class Worker : BackgroundService
         {
             e.AutoAcknowledge = false;
             var payload = e.ApplicationMessage.PayloadSegment.Array!;
+            var payloadStr = Encoding.UTF8.GetString(payload);
             var payloadType = e.ApplicationMessage.UserProperties?.Find(p => p.Name == "payload_type");
             var payloadInfo = e.ApplicationMessage.UserProperties?.Find(p => p.Name == "payload_info");
 
@@ -157,10 +158,9 @@ public class Worker : BackgroundService
         }
     }
 
-    private static void HandleSingle(byte[] payload)
+    private static void HandleSingle(byte[] _)
     {
-        var payloadStr = Encoding.UTF8.GetString(payload);
-        Console.WriteLine(payloadStr);
+        Console.WriteLine("Single handled");
     }
 
     private static void HandlePayloadWithJsonPath(byte[] payload, string? payloadInfoStr)
