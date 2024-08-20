@@ -1,56 +1,6 @@
 # version: "3.8"
 # References: https://www.emqx.io/docs/en/latest/deploy/install-docker.html
 services:
-  # MQTT listeners
-  mqtt-listener:
-    image: ibr/mqtt-listener:latest
-    # logging:
-    #   driver: none
-    build:
-      context: .
-      dockerfile: IBR.MqttListener/Dockerfile
-    environment:
-      Logging__LogLevel__Default: Information
-      MqttClientOptions__Tcp__Server: node1.emqx.io
-      MqttClientOptions__Tcp__NoDelay: true
-      MqttClientOptions__Tcp__BufferSize: 40960
-      MqttClientOptions__CleanSession: false
-      MqttClientOptions__SessionExpiryInterval: 120
-      MqttClientOptions__ReconnectDelaySecs: 15
-      MqttClientOptions__Topic: $$share/ahi/projectId/+/devices/+/telemetry
-      MqttClientOptions__Qos: 1
-    networks:
-      - ibr-bridge
-    deploy:
-      replicas: 1
-      resources:
-        limits:
-          cpus: "1"
-          memory: "250M"
-    depends_on:
-      emqx:
-        condition: service_healthy
-
-  # MQTT publishers
-  mqtt-publisher:
-    image: ibr/mqtt-publisher:latest
-    build:
-      context: .
-      dockerfile: IBR.MqttPublisher/Dockerfile
-    environment:
-      - MqttClientOptions__TcpServer=node1.emqx.io
-      - MqttClientOptions__ApiBase=http://node1.emqx.io:18083
-      - MqttClientOptions__TopicFormat=projectId/{0}/devices/{1}/telemetry
-    stdin_open: true
-    tty: true
-    networks:
-      - ibr-bridge
-    deploy:
-      replicas: 1
-    depends_on:
-      emqx:
-        condition: service_healthy
-
   # EMQX nodes
   emqx:
     image: emqx/emqx:5.6.0

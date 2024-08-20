@@ -18,6 +18,7 @@ namespace IBR.MqttListener;
 
 public class Worker : BackgroundService
 {
+    private static readonly JsonSerializerOptions _defaultJsonOptions = new(defaults: JsonSerializerDefaults.Web);
     private static readonly JsonNodeJPath _jPathValueSystem = new();
     private readonly ILogger<Worker> _logger;
     private readonly IConfiguration _configuration;
@@ -105,6 +106,11 @@ public class Worker : BackgroundService
         _mqttClients.Add(mqttClient);
 
         mqttClient.ConnectedAsync += (e) => OnConnected(e, mqttClient);
+        mqttClient.DisconnectedAsync += (e) =>
+        {
+            _logger.LogError(exception: e.Exception, message: e.Reason.ToString());
+            return Task.CompletedTask;
+        };
         mqttClient.ApplicationMessageReceivedAsync += OnMessageReceived;
         await mqttClient.StartAsync(managedOptions);
     }
@@ -160,13 +166,13 @@ public class Worker : BackgroundService
 
     private static void HandleSingle(byte[] _)
     {
-        Console.WriteLine("Single handled");
+        Console.WriteLine($"Single handled at {DateTime.UtcNow}");
     }
 
     private static void HandlePayloadWithJsonPath(byte[] payload, string? payloadInfoStr)
     {
         if (payloadInfoStr is null) return;
-        var payloadInfo = JsonSerializer.Deserialize<JsonPathPayloadInfo>(payloadInfoStr)
+        var payloadInfo = JsonSerializer.Deserialize<JsonPathPayloadInfo>(payloadInfoStr, options: _defaultJsonOptions)
             ?? throw new ArgumentException(message: null, nameof(payloadInfoStr));
         var jsonStr = Encoding.UTF8.GetString(payload);
         var rootNode = JsonNode.Parse(payload);
@@ -174,9 +180,9 @@ public class Worker : BackgroundService
 
         var deviceId = jPathContext
             .SelectNodes(obj: rootNode, expr: payloadInfo.DeviceId, resultor: (value, _) => (value as JsonValue)?.GetValue<string>())
-            .FirstOrDefault();
+            .FirstOrDefault() ?? string.Empty;
         var metricKeys = jPathContext
-            .SelectNodes(obj: rootNode, expr: payloadInfo.MetricKey, resultor: (value, _) => value as string)
+            .SelectNodes(obj: rootNode, expr: payloadInfo.MetricKey, resultor: (value, _) => value as string ?? string.Empty)
             .ToArray();
 
         foreach (var metricKey in metricKeys)
@@ -220,7 +226,7 @@ public class Worker : BackgroundService
                 var ts = timestamps[i];
                 var value = values[i];
                 var quality = qualities != null ? qualities[i] : default(int?);
-                var series = new TimeSeries(ts, value, quality);
+                var series = new TimeSeries(deviceId, metricKey, ts, value, quality);
                 Console.WriteLine(series);
             }
         }

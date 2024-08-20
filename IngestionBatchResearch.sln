@@ -3,15 +3,15 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBR.MqttListener", "IBR.MqttListener\IBR.MqttListener.csproj", "{327A02C4-845E-42EB-AA5F-60DC5B0A772C}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBR.MqttPublisher", "IBR.MqttPublisher\IBR.MqttPublisher.csproj", "{51921CB7-7147-42EF-9983-169D6ECABD0B}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBR.Shared", "IBR.Shared\IBR.Shared.csproj", "{687C460B-39CC-4078-8DE9-2048B16A7DF0}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "JSONPath", "JSONPath", "{0F8C0D36-2C44-48F9-B010-16CAF8A24FEB}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JsonPath", "JSONPath\src\JsonPath.csproj", "{50DDDA1E-4558-4B51-A556-1FE30564BFF3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBR.PublisherApi", "IBR.PublisherApi\IBR.PublisherApi.csproj", "{D38EA3B7-7693-4B14-A3A0-85F0F07F1FC4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IBR.MqttListener", "IBR.MqttListener\IBR.MqttListener.csproj", "{F317C389-B52F-451C-A822-2885D10D6A02}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -19,14 +19,6 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{327A02C4-845E-42EB-AA5F-60DC5B0A772C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{327A02C4-845E-42EB-AA5F-60DC5B0A772C}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{327A02C4-845E-42EB-AA5F-60DC5B0A772C}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{327A02C4-845E-42EB-AA5F-60DC5B0A772C}.Release|Any CPU.Build.0 = Release|Any CPU
-		{51921CB7-7147-42EF-9983-169D6ECABD0B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{51921CB7-7147-42EF-9983-169D6ECABD0B}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{51921CB7-7147-42EF-9983-169D6ECABD0B}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{51921CB7-7147-42EF-9983-169D6ECABD0B}.Release|Any CPU.Build.0 = Release|Any CPU
 		{687C460B-39CC-4078-8DE9-2048B16A7DF0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{687C460B-39CC-4078-8DE9-2048B16A7DF0}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{687C460B-39CC-4078-8DE9-2048B16A7DF0}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -35,6 +27,14 @@ Global
 		{50DDDA1E-4558-4B51-A556-1FE30564BFF3}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{50DDDA1E-4558-4B51-A556-1FE30564BFF3}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{50DDDA1E-4558-4B51-A556-1FE30564BFF3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D38EA3B7-7693-4B14-A3A0-85F0F07F1FC4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D38EA3B7-7693-4B14-A3A0-85F0F07F1FC4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D38EA3B7-7693-4B14-A3A0-85F0F07F1FC4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D38EA3B7-7693-4B14-A3A0-85F0F07F1FC4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F317C389-B52F-451C-A822-2885D10D6A02}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F317C389-B52F-451C-A822-2885D10D6A02}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F317C389-B52F-451C-A822-2885D10D6A02}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F317C389-B52F-451C-A822-2885D10D6A02}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
