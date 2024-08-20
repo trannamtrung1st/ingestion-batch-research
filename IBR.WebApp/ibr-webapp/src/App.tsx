@@ -36,9 +36,56 @@ function App() {
       return {};
     }
   }, [json]);
+  const [metricKeysPath, setMetricKeysPath] = useState('');
+  const metricKeys = useMemo<string[]>(() => {
+    try {
+      return (metricKeysPath && JSONPath({ path: metricKeysPath, json: jsonObj })) || [];
+    } catch {
+      return [];
+    }
+  }, [jsonObj, metricKeysPath]);
 
   const setJPath = (key: keyof IJsonPathPayloadInfo, jPath: string) => payloadInfoForm.setFieldValue(key, jPath);
-  const onSetJPath = (key: keyof IJsonPathPayloadInfo) => (jPath: string) => setJPath(key, jPath);
+  const onSelectJPath = (key: keyof IJsonPathPayloadInfo, metricBased: boolean = false) => (jPath: string) => {
+    let finalPath = jPath;
+    let matchResult = JSONPath({ path: finalPath, json: jsonObj });
+    if (matchResult.length === 1) {
+      const matches = finalPath.matchAll(/[.]\d+/g);
+      let match: IteratorResult<RegExpExecArray, any>;
+      let currentPath: string | undefined;
+      let maxFoundPath: string | undefined;
+      let maxCount = 1;
+      while ((match = matches.next()) && match?.value) {
+        const matchValue = match.value[0];
+        const matchIdx = match.value.index;
+        currentPath = finalPath.substring(0, matchIdx) + '.*' + finalPath.substring(matchIdx + matchValue.length);
+        matchResult = JSONPath({ path: currentPath, json: jsonObj });
+        if (matchResult.length > maxCount) {
+          maxCount = matchResult.length;
+          maxFoundPath = currentPath;
+        }
+      }
+      if (maxFoundPath) finalPath = maxFoundPath;
+    }
+
+    if (metricBased) {
+      metricKeys.forEach(k => {
+        const match = finalPath.match(new RegExp(`[.]${k}$|.${k}.`));
+        if (match?.index) {
+          const matchValue = match[0];
+          const matchIdx = match.index;
+          finalPath = finalPath.substring(0, matchIdx)
+            + matchValue.replace(k, '{metric_key}')
+            + finalPath.substring(matchIdx + matchValue.length);
+        }
+      })
+    }
+
+    setJPath(key, finalPath);
+    if (key === 'metricKey') {
+      setMetricKeysPath(finalPath);
+    }
+  }
 
   const onPreview = (key: keyof IJsonPathPayloadInfo) => () => {
     try {
@@ -50,8 +97,6 @@ function App() {
 
       let finalResult: any;
       if (jsonPath?.includes('{metric_key}')) {
-        const metricKeysPath = payloadInfoForm.getFieldValue('metricKey');
-        const metricKeys = JSONPath({ path: metricKeysPath, json: jsonObj });
         finalResult = {};
         metricKeys.forEach((k: string) => {
           const mPath = jsonPath.replace('{metric_key}', k);
@@ -265,31 +310,31 @@ function App() {
           >
             <Form.Item label="Device id" name="deviceId">
               <Input
-                onFocus={() => onSelectPath.current = onSetJPath('deviceId')}
+                onFocus={() => onSelectPath.current = onSelectJPath('deviceId')}
                 addonAfter={<EyeOutlined className='cursor-pointer' onClick={onPreview('deviceId')} />}
               />
             </Form.Item>
             <Form.Item label="Metric key" name="metricKey">
               <Input
-                onFocus={() => onSelectPath.current = onSetJPath('metricKey')}
+                onFocus={() => onSelectPath.current = onSelectJPath('metricKey')}
                 addonAfter={<EyeOutlined className='cursor-pointer' onClick={onPreview('metricKey')} />}
               />
             </Form.Item>
             <Form.Item label="Timestamp" name="timestamp">
               <Input
-                onFocus={() => onSelectPath.current = onSetJPath('timestamp')}
+                onFocus={() => onSelectPath.current = onSelectJPath('timestamp', true)}
                 addonAfter={<EyeOutlined className='cursor-pointer' onClick={onPreview('timestamp')} />}
               />
             </Form.Item>
             <Form.Item label="Value" name="value">
               <Input
-                onFocus={() => onSelectPath.current = onSetJPath('value')}
+                onFocus={() => onSelectPath.current = onSelectJPath('value', true)}
                 addonAfter={<EyeOutlined className='cursor-pointer' onClick={onPreview('value')} />}
               />
             </Form.Item>
             <Form.Item label="Quality" name="quality">
               <Input
-                onFocus={() => onSelectPath.current = onSetJPath('quality')}
+                onFocus={() => onSelectPath.current = onSelectJPath('quality', true)}
                 addonAfter={<EyeOutlined className='cursor-pointer' onClick={onPreview('quality')} />}
               />
             </Form.Item>
@@ -306,7 +351,7 @@ function App() {
           </div>
         </Col>
       </Row>
-      <Divider />
+      <Divider>JSON path selector</Divider>
       <div style={{ textAlign: 'left' }}>
         {renderJson(jsonObj, false)}
       </div>

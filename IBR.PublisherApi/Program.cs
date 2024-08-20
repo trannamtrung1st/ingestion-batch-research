@@ -92,13 +92,17 @@ app.MapGet("/api/sample-payloads/single", ([FromQuery] int noOfMetrics = 3) =>
 
 app.MapGet("/api/sample-payloads/batch-row-based", ([FromQuery] int batchSize = 10, [FromQuery] int noOfMetrics = 3) =>
 {
-    return Results.Ok(BuildRowBasedBatchPayload(batchSize, noOfMetrics));
+    var payload = BuildRowBasedBatchPayload(batchSize, noOfMetrics);
+    var json = JsonSerializer.SerializeToUtf8Bytes(payload, defaultJsonOptions);
+    return Results.Bytes(json, contentType: "application/json", fileDownloadName: "batch-row-based.json");
 })
 .WithName("Get sample payload: Row-based");
 
 app.MapGet("/api/sample-payloads/batch-columnar", ([FromQuery] int batchSize = 10, [FromQuery] int noOfMetrics = 3) =>
 {
-    return Results.Ok(BuildColumnarBatchPayload(batchSize, noOfMetrics));
+    var payload = BuildColumnarBatchPayload(batchSize, noOfMetrics);
+    var json = JsonSerializer.SerializeToUtf8Bytes(payload, defaultJsonOptions);
+    return Results.Bytes(json, contentType: "application/json", fileDownloadName: "batch-columnar.json");
 })
 .WithName("Get sample payload: Columnar");
 

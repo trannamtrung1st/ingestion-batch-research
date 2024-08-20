@@ -182,10 +182,11 @@ public class Worker : BackgroundService
             .SelectNodes(obj: rootNode, expr: payloadInfo.DeviceId, resultor: (value, _) => (value as JsonValue)?.GetValue<string>())
             .FirstOrDefault() ?? string.Empty;
         var metricKeys = jPathContext
-            .SelectNodes(obj: rootNode, expr: payloadInfo.MetricKey, resultor: (value, _) => value as string ?? string.Empty)
+            .SelectNodes(obj: rootNode, expr: payloadInfo.MetricKey,
+                resultor: (value, _) => (value as string) ?? (value as JsonValue)?.GetValue<string>() ?? string.Empty)
             .ToArray();
 
-        foreach (var metricKey in metricKeys)
+        void GetSeries(string? metricKey, string[]? metricKeys)
         {
             var timestamps = jPathContext
                 .SelectNodes(obj: rootNode, expr: payloadInfo.Timestamp.Replace("{metric_key}", metricKey),
@@ -221,14 +222,33 @@ public class Worker : BackgroundService
                     .ToArray();
             }
 
-            for (int i = 0; i < timestamps.Length; i++)
+            if (timestamps.Length <= 200)
             {
-                var ts = timestamps[i];
-                var value = values[i];
-                var quality = qualities != null ? qualities[i] : default(int?);
-                var series = new TimeSeries(deviceId, metricKey, ts, value, quality);
-                Console.WriteLine(series);
+                for (int i = 0; i < timestamps.Length; i++)
+                {
+                    var ts = timestamps[i];
+                    var value = values[i];
+                    var quality = qualities != null ? qualities[i] : default(int?);
+                    var series = new TimeSeries(
+                        deviceId, metricKey: metricKey ?? metricKeys?[i] ?? throw new Exception("Empty metric key"),
+                        ts, value, quality);
+                    Console.WriteLine(series);
+                }
             }
+            else
+            {
+                Console.WriteLine($"Parsed count: {timestamps.Length}");
+            }
+        }
+
+        if (payloadInfo.Timestamp.Contains("{metric_key}"))
+        {
+            foreach (var mKey in metricKeys)
+                GetSeries(mKey, metricKeys: null);
+        }
+        else
+        {
+            GetSeries(metricKey: null, metricKeys);
         }
     }
 
