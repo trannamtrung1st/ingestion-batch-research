@@ -1,11 +1,15 @@
-import { CSSProperties, useMemo, useRef, useState } from 'react'
+import { ChangeEvent, CSSProperties, useMemo, useRef, useState } from 'react'
 import reactLogo from './assets/react.svg'
 import viteLogo from '/vite.svg'
 import './App.css'
+import { JSONPath } from 'jsonpath-plus';
+import JsonView from '@uiw/react-json-view';
+import { lightTheme } from '@uiw/react-json-view/light';
 
 function App() {
   const [json, setJson] = useState('{}');
   const [payloadInfo, setPayloadInfo] = useState<any>({});
+  const [previewResult, setPreviewResult] = useState<any>({});
   const onSelectPath = useRef<(jPath: string) => void>();
   const jsonObj = useMemo(() => {
     try {
@@ -15,8 +19,39 @@ function App() {
     }
   }, [json]);
 
-  const onSetJPath = (key: string) => (jPath: string) => {
-    setPayloadInfo((prev: any) => ({ ...prev, [key]: jPath }));
+  const setJPath = (key: string, jPath: string) => setPayloadInfo((prev: any) => ({ ...prev, [key]: jPath }));
+
+  const onSetJPath = (key: string) => (jPath: string) => setJPath(key, jPath);
+  const onJPathChange = (key: string) => (e: ChangeEvent<HTMLInputElement>) => setJPath(key, e.target.value);
+
+  const onPreview = (key: string) => () => {
+    try {
+      const jsonPath = payloadInfo[key];
+      if (!jsonPath) {
+        setPreviewResult({});
+        return;
+      }
+
+      let finalResult: any;
+      if (jsonPath?.includes('{metric_key}')) {
+        const metricKeys = JSONPath({ path: payloadInfo['metricKey'], json: jsonObj });
+        finalResult = {};
+        metricKeys.forEach((k: string) => {
+          const mPath = jsonPath.replace('{metric_key}', k);
+          const result = JSONPath({ path: mPath, json: jsonObj });
+          finalResult[k] = result;
+        });
+      } else {
+        finalResult = JSONPath({ path: jsonPath, json: jsonObj });
+      }
+      setPreviewResult(finalResult);
+    } catch {
+      setPreviewResult({});
+    }
+  }
+
+  const onPreviewPayloadInfo = () => {
+    setPreviewResult(payloadInfo);
   }
 
   const renderJson = (obj: any, hasNext: boolean, parentPath?: string, propName?: string, idx?: number): any => {
@@ -52,7 +87,7 @@ function App() {
               {prop}<span className='json-token'>{'['}</span>
             </div>
             {obj.map((item, idx) => (
-              <div style={nestedStyle}>
+              <div key={idx} style={nestedStyle}>
                 {renderJson(item, idx + 1 < obj.length, currentPath, undefined, idx)}
               </div>
             ))}
@@ -70,7 +105,7 @@ function App() {
             </div>
             {entries.map(([key, value], idx) => {
               return (
-                <div style={nestedStyle}>
+                <div key={idx} style={nestedStyle}>
                   {renderJson(value, idx + 1 < entries.length, currentPath, key)}
                 </div>
               );
@@ -101,44 +136,59 @@ function App() {
           style={{ width: '50vw', height: '30vh' }}
           onChange={(e) => setJson(e.target.value)} placeholder='Input JSON'></textarea>
         <hr />
-        <div style={{ textAlign: 'left' }}>
-          <form onSubmit={(e) => e.preventDefault()}>
+        <div className='json-path-form-container'>
+          <form className='json-path-form' onSubmit={(e) => e.preventDefault()}>
             <div className='form-item'>
               <label>Device id</label>
               <input type='text' name='deviceId'
-                readOnly value={payloadInfo.deviceId}
+                value={payloadInfo.deviceId || ''}
+                onChange={onJPathChange('deviceId')}
                 onFocus={() => onSelectPath.current = onSetJPath('deviceId')}
               />
+              <button onClick={onPreview('deviceId')}>Preview</button>
             </div>
             <div className='form-item'>
               <label>Metric key</label>
               <input type='text' name='metricKey'
-                readOnly value={payloadInfo.metricKey}
+                value={payloadInfo.metricKey || ''}
+                onChange={onJPathChange('metricKey')}
                 onFocus={() => onSelectPath.current = onSetJPath('metricKey')}
               />
+              <button onClick={onPreview('metricKey')}>Preview</button>
             </div>
             <div className='form-item'>
               <label>Timestamp</label>
               <input type='text' name='timestamp'
-                readOnly value={payloadInfo.timestamp}
+                value={payloadInfo.timestamp || ''}
+                onChange={onJPathChange('timestamp')}
                 onFocus={() => onSelectPath.current = onSetJPath('timestamp')}
               />
+              <button onClick={onPreview('timestamp')}>Preview</button>
             </div>
             <div className='form-item'>
               <label>Value</label>
               <input type='text' name='value'
-                readOnly value={payloadInfo.value}
+                value={payloadInfo.value || ''}
+                onChange={onJPathChange('value')}
                 onFocus={() => onSelectPath.current = onSetJPath('value')}
               />
+              <button onClick={onPreview('value')}>Preview</button>
             </div>
             <div className='form-item'>
               <label>Quality</label>
               <input type='text' name='quality'
-                readOnly value={payloadInfo.quality}
+                value={payloadInfo.quality || ''}
+                onChange={onJPathChange('quality')}
                 onFocus={() => onSelectPath.current = onSetJPath('quality')}
               />
+              <button onClick={onPreview('quality')}>Preview</button>
             </div>
+            <br />
+            <button onClick={onPreviewPayloadInfo}>Preview JPath</button>
           </form>
+          <div className='json-path-preview'>
+            <JsonView value={previewResult} style={lightTheme} displayDataTypes={false} />
+          </div>
         </div>
         <hr />
         <div style={{ textAlign: 'left' }}>

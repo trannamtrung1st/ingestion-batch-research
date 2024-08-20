@@ -51,11 +51,27 @@
 }
 
 .form-item {
-  width: 500px;
+  width: '100%';
   display: flex;
-  justify-content: space-between;
+}
+
+.form-item label {
+  width: 150px;
 }
 
 .form-item input {
   width: 300px;
+}
+
+.json-path-form-container {
+  display: flex;
+  text-align: left;
+}
+
+.json-path-form {
+  flex: 2;
+}
+
+.json-path-preview {
+  flex: 1;
 }

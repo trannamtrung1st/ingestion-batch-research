@@ -8,6 +8,12 @@ importers:
 
   .:
     dependencies:
+      '@uiw/react-json-view':
+        specifier: 2.0.0-alpha.26
+        version: 2.0.0-alpha.26(@babel/runtime@7.25.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      jsonpath-plus:
+        specifier: ^9.0.0
+        version: 9.0.0
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -229,6 +235,18 @@ packages:
   '@humanwhocodes/retry@0.3.0':
     resolution: {integrity: sha512-d2CGZR2o7fS6sWB7DG/3a95bGKQyHMACZ5aW8qGkkqQpUoZV6C0X7Pc7l4ZNMZkfNBf4VWNe9E1jRsf0G146Ew==}
     engines: {node: '>=18.18'}
+
+  '@jsep-plugin/assignment@1.2.1':
+    resolution: {integrity: sha512-gaHqbubTi29aZpVbBlECRpmdia+L5/lh2BwtIJTmtxdbecEyyX/ejAOg7eQDGNvGOUmPY7Z2Yxdy9ioyH/VJeA==}
+    engines: {node: '>= 10.16.0'}
+    peerDependencies:
+      jsep: ^0.4.0||^1.0.0
+
+  '@jsep-plugin/regex@1.0.3':
+    resolution: {integrity: sha512-XfZgry4DwEZvSFtS/6Y+R48D7qJYJK6R9/yJFyUFHCIUMEEHuJ4X95TDgJp5QkmzfLYvapMPzskV5HpIDrREug==}
+    engines: {node: '>= 10.16.0'}
+    peerDependencies:
+      jsep: ^0.4.0||^1.0.0
 
   '@nodelib/fs.scandir@2.1.5':
     resolution: {integrity: sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g==}
@@ -465,6 +483,13 @@ packages:
   '@typescript-eslint/visitor-keys@8.1.0':
     resolution: {integrity: sha512-ba0lNI19awqZ5ZNKh6wCModMwoZs457StTebQ0q1NP58zSi2F6MOZRXwfKZy+jB78JNJ/WH8GSh2IQNzXX8Nag==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+
+  '@uiw/react-json-view@2.0.0-alpha.26':
+    resolution: {integrity: sha512-i3uph/hjjT+RwUMjC3lpQUFwWWP+/muipo5Hj22XlhreFrcnhgydorq3PFBnmu4nZxNzkwGar07M6/f6+5b+XQ==}
+    peerDependencies:
+      '@babel/runtime': '>=7.10.0'
+      react: '>=18.0.0'
+      react-dom: '>=18.0.0'
 
   '@vitejs/plugin-react-swc@3.7.0':
     resolution: {integrity: sha512-yrknSb3Dci6svCd/qhHqhFPDSw0QtjumcqdKMoNNzmOl5lMXTTiqzjWtG4Qask2HdvvzaNgSunbQGet8/GrKdA==}
@@ -743,6 +768,10 @@ packages:
     resolution: {integrity: sha512-wpxZs9NoxZaJESJGIZTyDEaYpl0FKSA+FB9aJiyemKhMwkxQg63h4T1KJgUGHpTqPDNRcmmYLugrRjJlBtWvRA==}
     hasBin: true
 
+  jsep@1.3.9:
+    resolution: {integrity: sha512-i1rBX5N7VPl0eYb6+mHNp52sEuaS2Wi8CDYx1X5sn9naevL78+265XJqy1qENEk7mRKwS06NHpUqiBwR7qeodw==}
+    engines: {node: '>= 10.16.0'}
+
   json-buffer@3.0.1:
     resolution: {integrity: sha512-4bV5BfR2mqfQTJm+V5tPPdf+ZpuhiIvTuAB5g8kcrXOZpTT/QwwVRWBywX1ozr6lEuPdbHxwaJlm9G6mI2sfSQ==}
 
@@ -751,6 +780,11 @@ packages:
 
   json-stable-stringify-without-jsonify@1.0.1:
     resolution: {integrity: sha512-Bdboy+l7tA3OGW6FjyFHWkP5LuByj1Tk33Ljyq0axyzdk9//JSi2u3fP1QSmd1KNwq6VOKYGlAu87CisVir6Pw==}
+
+  jsonpath-plus@9.0.0:
+    resolution: {integrity: sha512-bqE77VIDStrOTV/czspZhTn+o27Xx9ZJRGVkdVShEtPoqsIx5yALv3lWVU6y+PqYvWPJNWE7ORCQheQkEe0DDA==}
+    engines: {node: '>=14.0.0'}
+    hasBin: true
 
   keyv@4.5.4:
     resolution: {integrity: sha512-oxVHkHR/EJf2CNXnWxRLW6mg7JyCCUcG0DtEGmL2ctUo1PNTin1PUil+r/+4r5MpVgC/fn1kjsx7mjSujKqIpw==}
@@ -1181,6 +1215,14 @@ snapshots:
 
   '@humanwhocodes/retry@0.3.0': {}
 
+  '@jsep-plugin/assignment@1.2.1(jsep@1.3.9)':
+    dependencies:
+      jsep: 1.3.9
+
+  '@jsep-plugin/regex@1.0.3(jsep@1.3.9)':
+    dependencies:
+      jsep: 1.3.9
+
   '@nodelib/fs.scandir@2.1.5':
     dependencies:
       '@nodelib/fs.stat': 2.0.5
@@ -1386,6 +1428,12 @@ snapshots:
     dependencies:
       '@typescript-eslint/types': 8.1.0
       eslint-visitor-keys: 3.4.3
+
+  '@uiw/react-json-view@2.0.0-alpha.26(@babel/runtime@7.25.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+    dependencies:
+      '@babel/runtime': 7.25.0
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
 
   '@vitejs/plugin-react-swc@3.7.0(vite@5.4.1)':
     dependencies:
@@ -1698,11 +1746,19 @@ snapshots:
     dependencies:
       argparse: 2.0.1
 
+  jsep@1.3.9: {}
+
   json-buffer@3.0.1: {}
 
   json-schema-traverse@0.4.1: {}
 
   json-stable-stringify-without-jsonify@1.0.1: {}
+
+  jsonpath-plus@9.0.0:
+    dependencies:
+      '@jsep-plugin/assignment': 1.2.1(jsep@1.3.9)
+      '@jsep-plugin/regex': 1.0.3(jsep@1.3.9)
+      jsep: 1.3.9
 
   keyv@4.5.4:
     dependencies:
