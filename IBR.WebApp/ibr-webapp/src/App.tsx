@@ -1,14 +1,32 @@
-import { ChangeEvent, CSSProperties, useMemo, useRef, useState } from 'react'
+import { CSSProperties, useMemo, useRef, useState } from 'react'
 import reactLogo from './assets/react.svg'
 import viteLogo from '/vite.svg'
-import './App.css'
+import './App.scss'
 import { JSONPath } from 'jsonpath-plus';
 import JsonView from '@uiw/react-json-view';
-import { lightTheme } from '@uiw/react-json-view/light';
+import { Button, Col, Divider, Form, Input, message, Row, Space, Typography, Upload } from 'antd';
+import { EyeOutlined, UploadOutlined } from '@ant-design/icons';
+import { readFileAsString } from './utils/common-utils';
+import { basicTheme } from '@uiw/react-json-view/basic';
+
+const { Title } = Typography;
+
+interface IJsonPathPayloadInfo {
+  deviceId: string;
+  metricKey: string;
+  timestamp: string;
+  value: string;
+  quality?: string;
+}
+
+interface IPublishForm {
+  file: File;
+}
 
 function App() {
+  const [publishForm] = Form.useForm<IPublishForm>();
+  const [payloadInfoForm] = Form.useForm<IJsonPathPayloadInfo>();
   const [json, setJson] = useState('{}');
-  const [payloadInfo, setPayloadInfo] = useState<any>({});
   const [previewResult, setPreviewResult] = useState<any>({});
   const onSelectPath = useRef<(jPath: string) => void>();
   const jsonObj = useMemo(() => {
@@ -19,14 +37,12 @@ function App() {
     }
   }, [json]);
 
-  const setJPath = (key: string, jPath: string) => setPayloadInfo((prev: any) => ({ ...prev, [key]: jPath }));
+  const setJPath = (key: keyof IJsonPathPayloadInfo, jPath: string) => payloadInfoForm.setFieldValue(key, jPath);
+  const onSetJPath = (key: keyof IJsonPathPayloadInfo) => (jPath: string) => setJPath(key, jPath);
 
-  const onSetJPath = (key: string) => (jPath: string) => setJPath(key, jPath);
-  const onJPathChange = (key: string) => (e: ChangeEvent<HTMLInputElement>) => setJPath(key, e.target.value);
-
-  const onPreview = (key: string) => () => {
+  const onPreview = (key: keyof IJsonPathPayloadInfo) => () => {
     try {
-      const jsonPath = payloadInfo[key];
+      const jsonPath = payloadInfoForm.getFieldValue(key);
       if (!jsonPath) {
         setPreviewResult({});
         return;
@@ -34,7 +50,8 @@ function App() {
 
       let finalResult: any;
       if (jsonPath?.includes('{metric_key}')) {
-        const metricKeys = JSONPath({ path: payloadInfo['metricKey'], json: jsonObj });
+        const metricKeysPath = payloadInfoForm.getFieldValue('metricKey');
+        const metricKeys = JSONPath({ path: metricKeysPath, json: jsonObj });
         finalResult = {};
         metricKeys.forEach((k: string) => {
           const mPath = jsonPath.replace('{metric_key}', k);
@@ -51,7 +68,7 @@ function App() {
   }
 
   const onPreviewPayloadInfo = () => {
-    setPreviewResult(payloadInfo);
+    setPreviewResult(payloadInfoForm.getFieldsValue());
   }
 
   const renderJson = (obj: any, hasNext: boolean, parentPath?: string, propName?: string, idx?: number): any => {
@@ -120,85 +137,180 @@ function App() {
     return renderValue(obj);
   }
 
+  const handlePublish = (func: () => Promise<Response | undefined | null>) => async () => {
+    try {
+      const result = await func();
+      if (!result) return;
+      if (!result.ok)
+        throw Error(result.statusText);
+      message.success('Successful!');
+    } catch (e) {
+      console.error(e);
+      message.error("Something's wrong!");
+    }
+  }
+
+  const onPublishSingle = async () => {
+    const url = new URL('/api/publish-single', import.meta.env.VITE_BASE_API);
+    return await fetch(url, {
+      method: 'post'
+    });
+  }
+
+  const onPublishMultiple = async () => {
+    const url = new URL('/api/publish-multiple?batchSize=10', import.meta.env.VITE_BASE_API);
+    return await fetch(url, {
+      method: 'post'
+    });
+  }
+
+  const onPublishCsv = async () => {
+    const url = new URL('/api/publish-batch-csv', import.meta.env.VITE_BASE_API);
+    const file = publishForm.getFieldValue('file');
+    if (!file)
+      return null;
+
+    const formData = new FormData();
+    formData.append('file', file);
+    return await fetch(url, {
+      method: 'post',
+      body: formData
+    });
+  }
+
+  const onPublishBatchWithJsonPath = async () => {
+    const url = new URL('/api/publish-batch-with-json-path', import.meta.env.VITE_BASE_API);
+    const file = publishForm.getFieldValue('file');
+    const payloadInfo = payloadInfoForm.getFieldsValue();
+    if (!file || !payloadInfo)
+      return null;
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('payloadInfoJson', JSON.stringify(payloadInfo));
+    return await fetch(url, {
+      method: 'post',
+      body: formData
+    });
+  }
+
   return (
-    <>
-      <div>
+    <div>
+      <div className='flex justify-center mb-3'>
         <a href="https://vitejs.dev" target="_blank">
           <img src={viteLogo} className="logo" alt="Vite logo" />
         </a>
+        <div className='mx-3'></div>
         <a href="https://react.dev" target="_blank">
           <img src={reactLogo} className="logo react" alt="React logo" />
         </a>
       </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <textarea
-          style={{ width: '50vw', height: '30vh' }}
-          onChange={(e) => setJson(e.target.value)} placeholder='Input JSON'></textarea>
-        <hr />
-        <div className='json-path-form-container'>
-          <form className='json-path-form' onSubmit={(e) => e.preventDefault()}>
-            <div className='form-item'>
-              <label>Device id</label>
-              <input type='text' name='deviceId'
-                value={payloadInfo.deviceId || ''}
-                onChange={onJPathChange('deviceId')}
+      <Title level={1}>Batch Ingestion</Title>
+      <Form
+        layout={'inline'}
+        form={publishForm}
+        initialValues={{}}
+      >
+        <Form.Item<IPublishForm>
+          label="Payload"
+          getValueProps={() => ({})}
+          shouldUpdate={(prev, cur) => prev.file != cur.file}
+        >
+          {(form) => {
+            const file = form.getFieldValue('file');
+            return (
+              <Upload
+                multiple={false}
+                beforeUpload={() => false} name="file" listType="text"
+                fileList={file && [file]}
+                onChange={async (e) => {
+                  const file = e.file as any as File;
+                  const fileContent = file && await readFileAsString(file);
+                  setJson(fileContent || '{}');
+                  form.setFieldsValue({ file });
+                }}
+              >
+                <Button icon={<UploadOutlined />}>Click to upload</Button>
+              </Upload>
+            )
+          }}
+        </Form.Item>
+        <Form.Item shouldUpdate>
+          {() => (
+            <Space>
+              <Button type="primary" onClick={handlePublish(onPublishSingle)}>
+                Publish single
+              </Button>
+              <Button type="primary" onClick={handlePublish(onPublishMultiple)}>
+                Publish multiple
+              </Button>
+              <Button type="primary" onClick={handlePublish(onPublishCsv)}>
+                Publish CSV
+              </Button>
+              <Button type="primary" onClick={handlePublish(onPublishBatchWithJsonPath)}>
+                Publish JSON path
+              </Button>
+            </Space>
+          )}
+        </Form.Item>
+      </Form>
+      <Divider>JSON path builder</Divider>
+      <Row gutter={[16, 16]}>
+        <Col span={12}>
+          <Form
+            labelCol={{ span: 6 }} wrapperCol={{ span: 18 }}
+            layout={'horizontal'}
+            form={payloadInfoForm}
+            initialValues={{}}
+          >
+            <Form.Item label="Device id" name="deviceId">
+              <Input
                 onFocus={() => onSelectPath.current = onSetJPath('deviceId')}
+                addonAfter={<EyeOutlined className='cursor-pointer' onClick={onPreview('deviceId')} />}
               />
-              <button onClick={onPreview('deviceId')}>Preview</button>
-            </div>
-            <div className='form-item'>
-              <label>Metric key</label>
-              <input type='text' name='metricKey'
-                value={payloadInfo.metricKey || ''}
-                onChange={onJPathChange('metricKey')}
+            </Form.Item>
+            <Form.Item label="Metric key" name="metricKey">
+              <Input
                 onFocus={() => onSelectPath.current = onSetJPath('metricKey')}
+                addonAfter={<EyeOutlined className='cursor-pointer' onClick={onPreview('metricKey')} />}
               />
-              <button onClick={onPreview('metricKey')}>Preview</button>
-            </div>
-            <div className='form-item'>
-              <label>Timestamp</label>
-              <input type='text' name='timestamp'
-                value={payloadInfo.timestamp || ''}
-                onChange={onJPathChange('timestamp')}
+            </Form.Item>
+            <Form.Item label="Timestamp" name="timestamp">
+              <Input
                 onFocus={() => onSelectPath.current = onSetJPath('timestamp')}
+                addonAfter={<EyeOutlined className='cursor-pointer' onClick={onPreview('timestamp')} />}
               />
-              <button onClick={onPreview('timestamp')}>Preview</button>
-            </div>
-            <div className='form-item'>
-              <label>Value</label>
-              <input type='text' name='value'
-                value={payloadInfo.value || ''}
-                onChange={onJPathChange('value')}
+            </Form.Item>
+            <Form.Item label="Value" name="value">
+              <Input
                 onFocus={() => onSelectPath.current = onSetJPath('value')}
+                addonAfter={<EyeOutlined className='cursor-pointer' onClick={onPreview('value')} />}
               />
-              <button onClick={onPreview('value')}>Preview</button>
-            </div>
-            <div className='form-item'>
-              <label>Quality</label>
-              <input type='text' name='quality'
-                value={payloadInfo.quality || ''}
-                onChange={onJPathChange('quality')}
+            </Form.Item>
+            <Form.Item label="Quality" name="quality">
+              <Input
                 onFocus={() => onSelectPath.current = onSetJPath('quality')}
+                addonAfter={<EyeOutlined className='cursor-pointer' onClick={onPreview('quality')} />}
               />
-              <button onClick={onPreview('quality')}>Preview</button>
+            </Form.Item>
+            <div className='text-right'>
+              <Button type="default" onClick={onPreviewPayloadInfo}>
+                Preview payload info <EyeOutlined />
+              </Button>
             </div>
-            <br />
-            <button onClick={onPreviewPayloadInfo}>Preview JPath</button>
-          </form>
+          </Form>
+        </Col>
+        <Col span={12}>
           <div className='json-path-preview'>
-            <JsonView value={previewResult} style={lightTheme} displayDataTypes={false} />
+            <JsonView value={previewResult} style={basicTheme} displayDataTypes={false} />
           </div>
-        </div>
-        <hr />
-        <div style={{ textAlign: 'left' }}>
-          {renderJson(jsonObj, false)}
-        </div>
+        </Col>
+      </Row>
+      <Divider />
+      <div style={{ textAlign: 'left' }}>
+        {renderJson(jsonObj, false)}
       </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
+    </div >
   )
 }
 

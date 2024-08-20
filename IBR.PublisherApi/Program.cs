@@ -15,7 +15,8 @@ var mqttClientOptions = configuration.GetSection("MqttClientOptions");
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer()
-    .AddSwaggerGen();
+    .AddSwaggerGen()
+    .AddCors(builder => builder.AddDefaultPolicy(opt => opt.AllowAnyHeader().AllowAnyMethod().AllowAnyOrigin()));
 
 var apiBase = mqttClientOptions["ApiBase"] ?? "http://localhost:18083";
 var basicAuth = Convert.ToBase64String(Encoding.UTF8.GetBytes("publisher:abc@123"));
@@ -45,6 +46,8 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.UseCors();
+
 app.MapPost("/api/publish-single", async () =>
 {
     await PublishSingle();
@@ -52,7 +55,7 @@ app.MapPost("/api/publish-single", async () =>
 })
 .WithName("Publish single");
 
-app.MapPost("/api/publish-multiple", async ([FromBody] int batchSize = 10) =>
+app.MapPost("/api/publish-multiple", async ([FromQuery] int batchSize = 10) =>
 {
     await PublishMutipleUsingBulkApi(batchSize);
     return Results.NoContent();

@@ -1,10 +1,16 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { StyleProvider } from '@ant-design/cssinjs';
 import App from './App.tsx'
 import './index.css'
+import { ConfigProvider } from 'antd'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <ConfigProvider>
+      <StyleProvider layer>
+        <App />
+      </StyleProvider>
+    </ConfigProvider>
   </StrictMode>,
 )
