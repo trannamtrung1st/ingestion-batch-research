@@ -73,15 +73,24 @@ app.MapPost("/api/publish-batch-csv", async (IFormFile file) =>
 
 app.MapPost("/api/publish-batch-with-json-path", async (
     [FromForm] IFormFile file,
-    [FromForm] string payloadInfoJson) =>
+    [FromForm] string payloadInfo) =>
 {
     var payloadStr = await ReadAsStringAsync(file);
-    var payloadInfo = JsonSerializer.Deserialize<JsonPathPayloadInfo>(payloadInfoJson, options: defaultJsonOptions)
-        ?? throw new ArgumentException(message: null, paramName: nameof(payloadInfoJson));
     await PublishBatchUsingSingleApi(payloadStr, payloadType: "payload_with_json_path", payloadInfo);
     return Results.NoContent();
 })
 .WithName("Publish batch with JSON path")
+.DisableAntiforgery();
+
+app.MapPost("/api/publish-batch-with-template", async (
+    [FromForm] IFormFile file,
+    [FromForm] string payloadInfo) =>
+{
+    var payloadStr = await ReadAsStringAsync(file);
+    await PublishBatchUsingSingleApi(payloadStr, payloadType: "payload_with_template", payloadInfo);
+    return Results.NoContent();
+})
+.WithName("Publish batch with template")
 .DisableAntiforgery();
 
 app.MapGet("/api/sample-payloads/single", ([FromQuery] int noOfMetrics = 3) =>
@@ -105,6 +114,13 @@ app.MapGet("/api/sample-payloads/batch-columnar", ([FromQuery] int batchSize = 1
     return Results.Bytes(json, contentType: "application/json", fileDownloadName: "batch-columnar.json");
 })
 .WithName("Get sample payload: Columnar");
+
+app.MapGet("/api/sample-payloads/template", () =>
+{
+    var template = BuildSamplePayloadTemplate();
+    return Results.Content(template, contentType: "text/plain");
+})
+.WithName("Get sample payload: Template");
 
 app.Run();
 
@@ -169,7 +185,7 @@ async Task PublishBatchUsingPlaintextCsv(string csv)
     resp.EnsureSuccessStatusCode();
 }
 
-async Task PublishBatchUsingSingleApi(string payloadStr, string payloadType, JsonPathPayloadInfo payloadInfo)
+async Task PublishBatchUsingSingleApi(string payloadStr, string payloadType, string payloadInfo)
 {
     MqttPublishPayload batch = new()
     {
@@ -182,7 +198,7 @@ async Task PublishBatchUsingSingleApi(string payloadStr, string payloadType, Jso
             UserProperties = new Dictionary<string, string>()
             {
                 ["payload_type"] = payloadType,
-                ["payload_info"] = JsonSerializer.Serialize(payloadInfo, options: defaultJsonOptions)
+                ["payload_info"] = payloadInfo
             }
         }
     };
@@ -251,4 +267,20 @@ async Task<string> ReadAsStringAsync(IFormFile file)
     using var csvStream = file.OpenReadStream();
     using var streamReader = new StreamReader(csvStream);
     return await streamReader.ReadToEndAsync();
+}
+
+string BuildSamplePayloadTemplate()
+{
+    var template = 
+@"{
+  ""deviceId"": ""%%"",
+  ""timestamp"": %%,
+  ""quality"": %%,
+  ""data"": {
+    ""temperature"": %%,
+    ""humidity"": %%,
+    ""running"": %%
+  }
+}";
+    return template;
 }

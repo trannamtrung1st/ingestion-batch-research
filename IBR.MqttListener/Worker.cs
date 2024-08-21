@@ -153,6 +153,11 @@ public class Worker : BackgroundService
                         HandlePayloadWithJsonPath(payload, payloadInfo?.Value);
                         break;
                     }
+                case "payload_with_template":
+                    {
+                        await HandlePayloadWithTemplate(payload, template: payloadInfo?.Value);
+                        break;
+                    }
             }
 
             await e.AcknowledgeAsync(cancellationToken: _stoppingToken);
@@ -249,6 +254,42 @@ public class Worker : BackgroundService
         else
         {
             GetSeries(metricKey: null, metricKeys);
+        }
+    }
+
+    private static async Task HandlePayloadWithTemplate(byte[] payload, string? template)
+    {
+        if (template is null) return;
+        using var memStream = new MemoryStream(payload);
+        using var streamReader = new StreamReader(memStream);
+        using var csvReader = new CsvReader(reader: streamReader, culture: CultureInfo.InvariantCulture);
+        while (await csvReader.ReadAsync())
+        {
+            var recordJson = template;
+            for (var i = 0; i < csvReader.ColumnCount; i++)
+            {
+                var field = csvReader.GetField(i);
+                var placeholderIdx = recordJson.IndexOf("%%");
+                if (placeholderIdx == -1) break;
+                recordJson = string.Concat(
+                    recordJson.AsSpan(0, placeholderIdx),
+                    field, recordJson.AsSpan(placeholderIdx + 2));
+            }
+
+            var record = JsonSerializer.Deserialize<DeviceSeriesPayload>(recordJson, _defaultJsonOptions);
+            if (record is not null)
+            {
+                foreach (var item in record.Data)
+                {
+                    var series = new TimeSeries(
+                        deviceId: record.DeviceId,
+                        metricKey: item.Key,
+                        timeStamp: DateTimeOffset.FromUnixTimeMilliseconds(record.Timestamp).UtcDateTime,
+                        value: item.Value,
+                        quality: record.Quality);
+                    Console.WriteLine(series);
+                }
+            }
         }
     }
 

@@ -4,7 +4,7 @@ import viteLogo from '/vite.svg'
 import './App.scss'
 import { JSONPath } from 'jsonpath-plus';
 import JsonView from '@uiw/react-json-view';
-import { Button, Col, Divider, Form, Input, message, Row, Space, Typography, Upload } from 'antd';
+import { Button, Col, Divider, Form, Input, message, Row, Space, Tabs, Typography, Upload } from 'antd';
 import { EyeOutlined, UploadOutlined } from '@ant-design/icons';
 import { readFileAsString } from './utils/common-utils';
 import { basicTheme } from '@uiw/react-json-view/basic';
@@ -23,9 +23,14 @@ interface IPublishForm {
   file: File;
 }
 
+interface ITemplateForm {
+  template: string;
+}
+
 function App() {
   const [publishForm] = Form.useForm<IPublishForm>();
-  const [payloadInfoForm] = Form.useForm<IJsonPathPayloadInfo>();
+  const [jPathForm] = Form.useForm<IJsonPathPayloadInfo>();
+  const [templateForm] = Form.useForm<ITemplateForm>();
   const [json, setJson] = useState('{}');
   const [previewResult, setPreviewResult] = useState<any>({});
   const onSelectPath = useRef<(jPath: string) => void>();
@@ -45,7 +50,7 @@ function App() {
     }
   }, [jsonObj, metricKeysPath]);
 
-  const setJPath = (key: keyof IJsonPathPayloadInfo, jPath: string) => payloadInfoForm.setFieldValue(key, jPath);
+  const setJPath = (key: keyof IJsonPathPayloadInfo, jPath: string) => jPathForm.setFieldValue(key, jPath);
   const onSelectJPath = (key: keyof IJsonPathPayloadInfo, metricBased: boolean = false) => (jPath: string) => {
     let finalPath = jPath;
     let matchResult = JSONPath({ path: finalPath, json: jsonObj });
@@ -89,7 +94,7 @@ function App() {
 
   const onPreview = (key: keyof IJsonPathPayloadInfo) => () => {
     try {
-      const jsonPath = payloadInfoForm.getFieldValue(key);
+      const jsonPath = jPathForm.getFieldValue(key);
       if (!jsonPath) {
         setPreviewResult({});
         return;
@@ -113,7 +118,7 @@ function App() {
   }
 
   const onPreviewPayloadInfo = () => {
-    setPreviewResult(payloadInfoForm.getFieldsValue());
+    setPreviewResult(jPathForm.getFieldsValue());
   }
 
   const renderJson = (obj: any, hasNext: boolean, parentPath?: string, propName?: string, idx?: number): any => {
@@ -182,7 +187,7 @@ function App() {
     return renderValue(obj);
   }
 
-  const handlePublish = (func: () => Promise<Response | undefined | null>) => async () => {
+  const handleFetch = (func: () => Promise<Response | undefined | null>) => async () => {
     try {
       const result = await func();
       if (!result) return;
@@ -226,18 +231,179 @@ function App() {
   const onPublishBatchWithJsonPath = async () => {
     const url = new URL('/api/publish-batch-with-json-path', import.meta.env.VITE_BASE_API);
     const file = publishForm.getFieldValue('file');
-    const payloadInfo = payloadInfoForm.getFieldsValue();
+    const payloadInfo = jPathForm.getFieldsValue();
     if (!file || !payloadInfo)
       return null;
 
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('payloadInfoJson', JSON.stringify(payloadInfo));
+    formData.append('payloadInfo', JSON.stringify(payloadInfo));
     return await fetch(url, {
       method: 'post',
       body: formData
     });
   }
+
+  const onPublishBatchWithJsonTemplate = async () => {
+    const url = new URL('/api/publish-batch-with-template', import.meta.env.VITE_BASE_API);
+    const file = publishForm.getFieldValue('file');
+    const template = templateForm.getFieldValue('template');
+    if (!file || !template)
+      return null;
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('payloadInfo', template);
+    return await fetch(url, {
+      method: 'post',
+      body: formData
+    });
+  }
+
+  const onUseSampleTemplate = async () => {
+    const url = new URL('/api/sample-payloads/template', import.meta.env.VITE_BASE_API);
+    const response = await fetch(url, {
+      method: 'get'
+    });
+    const template = await response.text();
+    templateForm.setFieldValue('template', template);
+  }
+
+  const populateActionForm = () => (<>
+    <Form
+      layout={'inline'}
+      form={publishForm}
+      initialValues={{}}
+    >
+      <Form.Item<IPublishForm>
+        label="Payload"
+        getValueProps={() => ({})}
+        shouldUpdate={(prev, cur) => prev.file != cur.file}
+      >
+        {(form) => {
+          const file = form.getFieldValue('file');
+          return (
+            <Upload
+              multiple={false}
+              beforeUpload={() => false} name="file" listType="text"
+              fileList={file && [file]}
+              onChange={async (e) => {
+                const file = e.file as any as File;
+                const fileContent = file && await readFileAsString(file);
+                setJson(fileContent || '{}');
+                form.setFieldsValue({ file });
+              }}
+            >
+              <Button icon={<UploadOutlined />}>Click to upload</Button>
+            </Upload>
+          )
+        }}
+      </Form.Item>
+      <Form.Item shouldUpdate>
+        {() => (
+          <Space>
+            <Button type="primary" onClick={handleFetch(onPublishSingle)}>
+              Publish single
+            </Button>
+            <Button type="primary" onClick={handleFetch(onPublishMultiple)}>
+              Publish multiple
+            </Button>
+            <Button type="primary" onClick={handleFetch(onPublishCsv)}>
+              Publish CSV
+            </Button>
+            <Button type="primary" onClick={handleFetch(onPublishBatchWithJsonPath)}>
+              Publish JSON path
+            </Button>
+            <Button type="primary" onClick={handleFetch(onPublishBatchWithJsonTemplate)}>
+              Publish JSON template
+            </Button>
+          </Space>
+        )}
+      </Form.Item>
+    </Form>
+  </>)
+
+  const populateJsonPathBuilder = () => (<>
+    <Divider>JSON path builder</Divider>
+    <Row gutter={[16, 16]}>
+      <Col span={12}>
+        <Form
+          labelCol={{ span: 6 }} wrapperCol={{ span: 18 }}
+          layout={'horizontal'}
+          form={jPathForm}
+          initialValues={{}}
+        >
+          <Form.Item label="Device id" name="deviceId">
+            <Input
+              onFocus={() => onSelectPath.current = onSelectJPath('deviceId')}
+              addonAfter={<EyeOutlined className='cursor-pointer' onClick={onPreview('deviceId')} />}
+            />
+          </Form.Item>
+          <Form.Item label="Metric key" name="metricKey">
+            <Input
+              onFocus={() => onSelectPath.current = onSelectJPath('metricKey')}
+              addonAfter={<EyeOutlined className='cursor-pointer' onClick={onPreview('metricKey')} />}
+            />
+          </Form.Item>
+          <Form.Item label="Timestamp" name="timestamp">
+            <Input
+              onFocus={() => onSelectPath.current = onSelectJPath('timestamp', true)}
+              addonAfter={<EyeOutlined className='cursor-pointer' onClick={onPreview('timestamp')} />}
+            />
+          </Form.Item>
+          <Form.Item label="Value" name="value">
+            <Input
+              onFocus={() => onSelectPath.current = onSelectJPath('value', true)}
+              addonAfter={<EyeOutlined className='cursor-pointer' onClick={onPreview('value')} />}
+            />
+          </Form.Item>
+          <Form.Item label="Quality" name="quality">
+            <Input
+              onFocus={() => onSelectPath.current = onSelectJPath('quality', true)}
+              addonAfter={<EyeOutlined className='cursor-pointer' onClick={onPreview('quality')} />}
+            />
+          </Form.Item>
+          <div className='text-right'>
+            <Button type="default" onClick={onPreviewPayloadInfo}>
+              Preview payload info <EyeOutlined />
+            </Button>
+          </div>
+        </Form>
+      </Col>
+      <Col span={12}>
+        <div className='json-path-preview'>
+          <JsonView value={previewResult} style={basicTheme} displayDataTypes={false} />
+        </div>
+      </Col>
+    </Row>
+    <Divider>JSON path selector</Divider>
+    <div style={{ textAlign: 'left' }}>
+      {renderJson(jsonObj, false)}
+    </div>
+  </>)
+
+  const populateJsonTemplateBuilder = () => (<>
+    <Divider>JSON template builder</Divider>
+    <Form
+      labelCol={{ span: 4 }} wrapperCol={{ span: 20 }}
+      layout={'horizontal'}
+      form={templateForm}
+      initialValues={{}}
+    >
+      <Form.Item label="Template" name="template">
+        <Input.TextArea rows={10} />
+      </Form.Item>
+      <div className='text-right'>
+        <Button type="default" onClick={onUseSampleTemplate}>
+          Use sample template
+        </Button>
+      </div>
+    </Form>
+  </>)
+
+  const wrapTabContent = (content: any) => (
+    <div className='bg-white p-3'>{content}</div>
+  )
 
   return (
     <div>
@@ -251,110 +417,22 @@ function App() {
         </a>
       </div>
       <Title level={1}>Batch Ingestion</Title>
-      <Form
-        layout={'inline'}
-        form={publishForm}
-        initialValues={{}}
-      >
-        <Form.Item<IPublishForm>
-          label="Payload"
-          getValueProps={() => ({})}
-          shouldUpdate={(prev, cur) => prev.file != cur.file}
-        >
-          {(form) => {
-            const file = form.getFieldValue('file');
-            return (
-              <Upload
-                multiple={false}
-                beforeUpload={() => false} name="file" listType="text"
-                fileList={file && [file]}
-                onChange={async (e) => {
-                  const file = e.file as any as File;
-                  const fileContent = file && await readFileAsString(file);
-                  setJson(fileContent || '{}');
-                  form.setFieldsValue({ file });
-                }}
-              >
-                <Button icon={<UploadOutlined />}>Click to upload</Button>
-              </Upload>
-            )
-          }}
-        </Form.Item>
-        <Form.Item shouldUpdate>
-          {() => (
-            <Space>
-              <Button type="primary" onClick={handlePublish(onPublishSingle)}>
-                Publish single
-              </Button>
-              <Button type="primary" onClick={handlePublish(onPublishMultiple)}>
-                Publish multiple
-              </Button>
-              <Button type="primary" onClick={handlePublish(onPublishCsv)}>
-                Publish CSV
-              </Button>
-              <Button type="primary" onClick={handlePublish(onPublishBatchWithJsonPath)}>
-                Publish JSON path
-              </Button>
-            </Space>
-          )}
-        </Form.Item>
-      </Form>
-      <Divider>JSON path builder</Divider>
-      <Row gutter={[16, 16]}>
-        <Col span={12}>
-          <Form
-            labelCol={{ span: 6 }} wrapperCol={{ span: 18 }}
-            layout={'horizontal'}
-            form={payloadInfoForm}
-            initialValues={{}}
-          >
-            <Form.Item label="Device id" name="deviceId">
-              <Input
-                onFocus={() => onSelectPath.current = onSelectJPath('deviceId')}
-                addonAfter={<EyeOutlined className='cursor-pointer' onClick={onPreview('deviceId')} />}
-              />
-            </Form.Item>
-            <Form.Item label="Metric key" name="metricKey">
-              <Input
-                onFocus={() => onSelectPath.current = onSelectJPath('metricKey')}
-                addonAfter={<EyeOutlined className='cursor-pointer' onClick={onPreview('metricKey')} />}
-              />
-            </Form.Item>
-            <Form.Item label="Timestamp" name="timestamp">
-              <Input
-                onFocus={() => onSelectPath.current = onSelectJPath('timestamp', true)}
-                addonAfter={<EyeOutlined className='cursor-pointer' onClick={onPreview('timestamp')} />}
-              />
-            </Form.Item>
-            <Form.Item label="Value" name="value">
-              <Input
-                onFocus={() => onSelectPath.current = onSelectJPath('value', true)}
-                addonAfter={<EyeOutlined className='cursor-pointer' onClick={onPreview('value')} />}
-              />
-            </Form.Item>
-            <Form.Item label="Quality" name="quality">
-              <Input
-                onFocus={() => onSelectPath.current = onSelectJPath('quality', true)}
-                addonAfter={<EyeOutlined className='cursor-pointer' onClick={onPreview('quality')} />}
-              />
-            </Form.Item>
-            <div className='text-right'>
-              <Button type="default" onClick={onPreviewPayloadInfo}>
-                Preview payload info <EyeOutlined />
-              </Button>
-            </div>
-          </Form>
-        </Col>
-        <Col span={12}>
-          <div className='json-path-preview'>
-            <JsonView value={previewResult} style={basicTheme} displayDataTypes={false} />
-          </div>
-        </Col>
-      </Row>
-      <Divider>JSON path selector</Divider>
-      <div style={{ textAlign: 'left' }}>
-        {renderJson(jsonObj, false)}
-      </div>
+      {populateActionForm()}
+      <Divider />
+      <Tabs type='card' tabBarStyle={{ margin: 0 }}
+        defaultActiveKey="json-path"
+        items={[
+          {
+            key: 'json-path',
+            label: 'JSON path',
+            children: wrapTabContent(populateJsonPathBuilder())
+          }, {
+            key: 'json-template',
+            label: 'JSON template',
+            children: wrapTabContent(populateJsonTemplateBuilder())
+          }
+        ]}
+      />
     </div >
   )
 }
