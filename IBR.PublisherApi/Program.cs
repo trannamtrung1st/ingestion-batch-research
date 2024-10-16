@@ -20,9 +20,9 @@ builder.Services.AddEndpointsApiExplorer()
 
 var apiBase = mqttClientOptions["ApiBase"] ?? "http://localhost:18083";
 var basicAuth = Convert.ToBase64String(Encoding.UTF8.GetBytes("publisher:abc@123"));
-using var httpClient = new HttpClient();
-httpClient.BaseAddress = new Uri(apiBase);
-httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", basicAuth);
+using var mqttRestClient = new HttpClient();
+mqttRestClient.BaseAddress = new Uri(apiBase);
+mqttRestClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", basicAuth);
 
 var tcpServer = mqttClientOptions["TcpServer"] ?? "localhost";
 var topic = mqttClientOptions["Topic"] ?? "batch_ingestion";
@@ -160,7 +160,7 @@ async Task PublishMutipleUsingBulkApi(int batchSize)
         });
     }
 
-    var resp = await httpClient.PostAsJsonAsync("/api/v5/publish/bulk", batch);
+    var resp = await mqttRestClient.PostAsJsonAsync("/api/v5/publish/bulk", batch);
     resp.EnsureSuccessStatusCode();
 }
 
@@ -181,7 +181,7 @@ async Task PublishBatchUsingPlaintextCsv(string csv)
         }
     };
 
-    var resp = await httpClient.PostAsJsonAsync("/api/v5/publish", payload);
+    var resp = await mqttRestClient.PostAsJsonAsync("/api/v5/publish", payload);
     resp.EnsureSuccessStatusCode();
 }
 
@@ -203,7 +203,7 @@ async Task PublishBatchUsingSingleApi(string payloadStr, string payloadType, str
         }
     };
 
-    var resp = await httpClient.PostAsJsonAsync("/api/v5/publish", batch);
+    var resp = await mqttRestClient.PostAsJsonAsync("/api/v5/publish", batch);
     resp.EnsureSuccessStatusCode();
 }
 
