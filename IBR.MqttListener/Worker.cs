@@ -227,9 +227,9 @@ public class Worker : BackgroundService
                     .ToArray();
             }
 
-            if (timestamps.Length <= 200)
+            if (values.Length <= 200)
             {
-                for (int i = 0; i < timestamps.Length; i++)
+                for (int i = 0; i < values.Length; i++)
                 {
                     var ts = timestamps[i];
                     var value = values[i];
@@ -242,11 +242,11 @@ public class Worker : BackgroundService
             }
             else
             {
-                Console.WriteLine($"Parsed count: {timestamps.Length}");
+                Console.WriteLine($"Parsed count: {values.Length}");
             }
         }
 
-        if (payloadInfo.Timestamp.Contains("{metric_key}"))
+        if (payloadInfo.Value.Contains("{metric_key}"))
         {
             foreach (var mKey in metricKeys)
                 GetSeries(mKey, metricKeys: null);

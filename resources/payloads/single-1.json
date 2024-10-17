@@ -1,0 +1,8 @@
+{
+  "deviceId": "dev-0",
+  "timestamp": 100,
+  "data": {
+    "num1": 1,
+    "num2": 2
+  }
+}
