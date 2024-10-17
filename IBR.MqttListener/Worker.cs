@@ -186,10 +186,6 @@ public class Worker : BackgroundService
         var deviceId = jPathContext
             .SelectNodes(obj: rootNode, expr: payloadInfo.DeviceId, resultor: (value, _) => (value as JsonValue)?.GetValue<string>())
             .FirstOrDefault() ?? string.Empty;
-        var metricKeys = jPathContext
-            .SelectNodes(obj: rootNode, expr: payloadInfo.MetricKey,
-                resultor: (value, _) => (value as string) ?? (value as JsonValue)?.GetValue<string>() ?? string.Empty)
-            .ToArray();
 
         void GetSeries(string? metricKey, string[]? metricKeys)
         {
@@ -248,12 +244,17 @@ public class Worker : BackgroundService
 
         if (payloadInfo.Value.Contains("{metric_key}"))
         {
-            foreach (var mKey in metricKeys)
+            foreach (var mKey in payloadInfo.MetricKeys)
                 GetSeries(mKey, metricKeys: null);
         }
         else
         {
-            GetSeries(metricKey: null, metricKeys);
+            var rawMetricKeys = jPathContext
+                .SelectNodes(obj: rootNode, expr: payloadInfo.MetricKey,
+                    resultor: (value, _) => (value as string) ?? (value as JsonValue)?.GetValue<string>() ?? string.Empty)
+                .ToArray();
+
+            GetSeries(metricKey: null, rawMetricKeys);
         }
     }
 

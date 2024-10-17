@@ -4,14 +4,16 @@ import viteLogo from '/vite.svg'
 import './App.scss'
 import { JSONPath } from 'jsonpath-plus';
 import JsonView from '@uiw/react-json-view';
-import { Button, Col, Divider, Form, Input, message, Row, Space, Tabs, Typography, Upload } from 'antd';
-import { EyeOutlined, UploadOutlined } from '@ant-design/icons';
+import { Button, Col, Divider, Form, Input, message, Row, Select, Space, Table, TableProps, Tabs, Typography, Upload } from 'antd';
+import { EyeOutlined, ScanOutlined, UploadOutlined } from '@ant-design/icons';
 import { readFileAsString } from './utils/common-utils';
 import { basicTheme } from '@uiw/react-json-view/basic';
+import { filter, isArray, isEmpty } from 'lodash';
 
 const { Title } = Typography;
 
 interface IJsonPathPayloadInfo {
+  payloadType: string;
   deviceId: string;
   metricKey: string;
   timestamp: string;
@@ -27,11 +29,87 @@ interface ITemplateForm {
   template: string;
 }
 
+interface IDeviceMetricSettings {
+  key: string;
+  name: string;
+  type: string;
+  dataType: string;
+  editable: boolean;
+  path: string;
+}
+
+const columns: TableProps<IDeviceMetricSettings>['columns'] = [
+  {
+    title: 'Key',
+    dataIndex: 'key',
+    key: 'key'
+  },
+  {
+    title: 'Name',
+    dataIndex: 'name',
+    key: 'name'
+  },
+  {
+    title: 'Type',
+    dataIndex: 'type',
+    key: 'type'
+  },
+  {
+    title: 'Data type',
+    key: 'dataType',
+    dataIndex: 'dataType',
+    render: (value, record) => (record.editable
+      ? (
+        <Select
+          defaultValue={value}
+          style={{ width: 120 }}
+          options={[
+            { value: 'text', label: 'text' },
+            { value: 'double', label: 'double' },
+            { value: 'int', label: 'int' },
+            { value: 'bool', label: 'bool' },
+            { value: 'JSON', label: 'JSON' }
+          ]}
+        />
+      )
+      : value)
+  },
+  {
+    title: 'Path',
+    key: 'path',
+    dataIndex: 'path'
+  }
+];
+
+const getDataType = (value: any) => {
+  const vType = typeof value;
+  switch (vType) {
+    case 'number':
+      return 'double';
+    case 'string':
+      return 'text';
+    case 'boolean':
+      return 'bool';
+    default:
+      return 'JSON';
+  }
+};
+
+const getPathKey = (jsonPath: string, metricKey?: string) => {
+  let key = jsonPath.replace(/[$]/, '')
+  if (metricKey) {
+    const indexOfMetricKey = key.indexOf('{metric_key}');
+    key = key.substring(0, indexOfMetricKey) + metricKey;
+  }
+  return key.split('.').filter(entry => !!entry).join('.');
+};
+
 function App() {
   const [publishForm] = Form.useForm<IPublishForm>();
   const [jPathForm] = Form.useForm<IJsonPathPayloadInfo>();
   const [templateForm] = Form.useForm<ITemplateForm>();
   const [json, setJson] = useState('{}');
+  const [deviceMetrics, setDeviceMetrics] = useState<IDeviceMetricSettings[]>([]);
   const [previewResult, setPreviewResult] = useState<any>({});
   const onSelectPath = useRef<(jPath: string) => void>();
   const jsonObj = useMemo(() => {
@@ -42,16 +120,28 @@ function App() {
     }
   }, [json]);
   const [metricKeysPath, setMetricKeysPath] = useState('');
-  const metricKeys = useMemo<string[]>(() => {
+  const [metricKeys, setMetricKeys] = useState<string[]>([]);
+
+  const recalculateMetricKeys = (path?: string) => {
+    path = path || metricKeysPath;
     try {
-      return (metricKeysPath && JSONPath({ path: metricKeysPath, json: jsonObj })) || [];
+      let metricKeys = (path && JSONPath({ path, json: jsonObj })) || [];
+      const currentPaths = Object.values(jPathForm.getFieldsValue());
+      metricKeys = filter(metricKeys, k => {
+        // [NOTE] remove existing default keys (device_id, timestamp, quality) 
+        const mKeyPath = path.replace('*~', k);
+        return !currentPaths.includes(mKeyPath);
+      });
+      setMetricKeys(metricKeys);
     } catch {
-      return [];
+      setMetricKeys([]);
     }
-  }, [jsonObj, metricKeysPath]);
+  }
 
   const setJPath = (key: keyof IJsonPathPayloadInfo, jPath: string) => jPathForm.setFieldValue(key, jPath);
-  const onSelectJPath = (key: keyof IJsonPathPayloadInfo, metricBased: boolean = false) => (jPath: string) => {
+  const onSelectJPath = (key: keyof IJsonPathPayloadInfo, isValue: boolean, metricBased: boolean = false) => (jPath: string) => {
+    const payloadType = jPathForm.getFieldValue('payloadType');
+    const isSingle = payloadType === 'single';
     let finalPath = jPath;
     let matchResult = JSONPath({ path: finalPath, json: jsonObj });
     if (matchResult.length === 1) {
@@ -73,7 +163,7 @@ function App() {
       if (maxFoundPath) finalPath = maxFoundPath;
     }
 
-    if (metricBased) {
+    if ((isValue || !isSingle) && metricBased) {
       metricKeys.forEach(k => {
         const match = finalPath.match(new RegExp(`[.]${k}$|.${k}.`));
         if (match?.index) {
@@ -89,7 +179,25 @@ function App() {
     setJPath(key, finalPath);
     if (key === 'metricKey') {
       setMetricKeysPath(finalPath);
+      recalculateMetricKeys(finalPath);
+    } else {
+      recalculateMetricKeys();
     }
+  }
+
+  const extractJsonPathValues = (jsonPath: string) => {
+    let finalResult: any;
+    if (jsonPath?.includes('{metric_key}')) {
+      finalResult = {};
+      metricKeys.forEach((k: string) => {
+        const mPath = jsonPath.replace('{metric_key}', k);
+        const result = JSONPath({ path: mPath, json: jsonObj });
+        finalResult[k] = result;
+      });
+    } else {
+      finalResult = JSONPath({ path: jsonPath, json: jsonObj });
+    };
+    return finalResult;
   }
 
   const onPreview = (key: keyof IJsonPathPayloadInfo) => () => {
@@ -100,18 +208,8 @@ function App() {
         return;
       }
 
-      let finalResult: any;
-      if (jsonPath?.includes('{metric_key}')) {
-        finalResult = {};
-        metricKeys.forEach((k: string) => {
-          const mPath = jsonPath.replace('{metric_key}', k);
-          const result = JSONPath({ path: mPath, json: jsonObj });
-          finalResult[k] = result;
-        });
-      } else {
-        finalResult = JSONPath({ path: jsonPath, json: jsonObj });
-      }
-      setPreviewResult(finalResult);
+      const values = extractJsonPathValues(jsonPath)
+      setPreviewResult(values);
     } catch {
       setPreviewResult({});
     }
@@ -119,6 +217,75 @@ function App() {
 
   const onPreviewPayloadInfo = () => {
     setPreviewResult(jPathForm.getFieldsValue());
+  }
+
+  const onParsePayload = () => {
+    const newDeviceMetrics: IDeviceMetricSettings[] = [];
+    const payloadInfo = jPathForm.getFieldsValue();
+    const deviceIds = extractJsonPathValues(payloadInfo.deviceId);
+    if (!isEmpty(deviceIds)) {
+      newDeviceMetrics.push({
+        key: 'device_id',
+        name: 'Device ID',
+        type: 'device_id',
+        dataType: 'device_id (text)',
+        editable: false,
+        path: payloadInfo.deviceId
+      })
+    }
+
+    const timestamps = extractJsonPathValues(payloadInfo.timestamp);
+    if (!isEmpty(timestamps)) {
+      newDeviceMetrics.push({
+        key: 'timestamp',
+        name: 'Timestamp',
+        type: 'timestamp',
+        dataType: 'timestamp',
+        editable: false,
+        path: payloadInfo.timestamp
+      })
+    }
+
+    if (payloadInfo.quality) {
+      const sampleQualities = extractJsonPathValues(payloadInfo.quality);
+      if (!isEmpty(sampleQualities)) {
+        newDeviceMetrics.push({
+          key: 'quality',
+          name: 'Quality',
+          type: 'quality',
+          dataType: 'quality (int)',
+          editable: false,
+          path: payloadInfo.quality
+        });
+      }
+    }
+
+    if (!isEmpty(metricKeys)) {
+      const values = extractJsonPathValues(payloadInfo.value);
+      const metricCache: any = {};
+      metricKeys.forEach((k, idx) => {
+        if (k in metricCache) return;
+        let dataType: string | undefined;
+        if (isArray(values)) {
+          const value = values[idx];
+          dataType = getDataType(value);
+        } else {
+          const value = values[k][0];
+          dataType = getDataType(value);
+        }
+
+        const key = getPathKey(payloadInfo.value, k);
+        newDeviceMetrics.push({
+          key, name: key,
+          type: 'metric',
+          dataType: dataType,
+          editable: true,
+          path: payloadInfo.value
+        });
+      });
+    }
+
+    setDeviceMetrics(newDeviceMetrics);
   }
 
   const renderJson = (obj: any, hasNext: boolean, parentPath?: string, propName?: string, idx?: number): any => {
@@ -237,7 +404,10 @@ function App() {
 
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('payloadInfo', JSON.stringify(payloadInfo));
+    formData.append('payloadInfo', JSON.stringify({
+      ...payloadInfo,
+      metricKeys
+    }));
     return await fetch(url, {
       method: 'post',
       body: formData
@@ -326,47 +496,65 @@ function App() {
   const populateJsonPathBuilder = () => (<>
     <Divider>JSON path builder</Divider>
     <Row gutter={[16, 16]}>
+      <Col span={24}>
+        <div className='text-center'><i>NOTE: If you provide a batch payload, make sure the no of sample series per device metric is greater than 3 so system can easily detect the correct pattern</i></div>
+      </Col>
       <Col span={12}>
         <Form
           labelCol={{ span: 6 }} wrapperCol={{ span: 18 }}
           layout={'horizontal'}
           form={jPathForm}
-          initialValues={{}}
+          initialValues={{
+            payloadType: 'single'
+          }}
         >
+          <Form.Item label="Payload type" name="payloadType">
+            <Select
+              options={[
+                { value: 'single', label: 'Single' },
+                { value: 'batch', label: 'Batch' }
+              ]}
+            />
+          </Form.Item>
           <Form.Item label="Device id" name="deviceId">
             <Input
-              onFocus={() => onSelectPath.current = onSelectJPath('deviceId')}
+              onFocus={() => onSelectPath.current = onSelectJPath('deviceId', false)}
               addonAfter={<EyeOutlined className='cursor-pointer' onClick={onPreview('deviceId')} />}
             />
           </Form.Item>
           <Form.Item label="Metric key" name="metricKey">
             <Input
-              onFocus={() => onSelectPath.current = onSelectJPath('metricKey')}
-              addonAfter={<EyeOutlined className='cursor-pointer' onClick={onPreview('metricKey')} />}
+              onFocus={() => onSelectPath.current = onSelectJPath('metricKey', false)}
+              addonAfter={<EyeOutlined className='cursor-pointer' onClick={() => setPreviewResult(metricKeys)} />}
             />
           </Form.Item>
           <Form.Item label="Timestamp" name="timestamp">
             <Input
-              onFocus={() => onSelectPath.current = onSelectJPath('timestamp', true)}
+              onFocus={() => onSelectPath.current = onSelectJPath('timestamp', false, true)}
               addonAfter={<EyeOutlined className='cursor-pointer' onClick={onPreview('timestamp')} />}
             />
           </Form.Item>
           <Form.Item label="Value" name="value">
             <Input
-              onFocus={() => onSelectPath.current = onSelectJPath('value', true)}
+              onFocus={() => onSelectPath.current = onSelectJPath('value', true, true)}
               addonAfter={<EyeOutlined className='cursor-pointer' onClick={onPreview('value')} />}
             />
           </Form.Item>
           <Form.Item label="Quality" name="quality">
             <Input
-              onFocus={() => onSelectPath.current = onSelectJPath('quality', true)}
+              onFocus={() => onSelectPath.current = onSelectJPath('quality', false, true)}
               addonAfter={<EyeOutlined className='cursor-pointer' onClick={onPreview('quality')} />}
             />
           </Form.Item>
           <div className='text-right'>
-            <Button type="default" onClick={onPreviewPayloadInfo}>
-              Preview payload info <EyeOutlined />
-            </Button>
+            <Space>
+              <Button type="default" onClick={onPreviewPayloadInfo}>
+                Preview payload info <EyeOutlined />
+              </Button>
+              <Button type="default" onClick={onParsePayload}>
+                Parse payload <ScanOutlined />
+              </Button>
+            </Space>
           </div>
         </Form>
       </Col>
@@ -381,6 +569,14 @@ function App() {
       {renderJson(jsonObj, false)}
     </div>
   </>)
+
+  const populateDeviceMetricConfiguration = () => {
+
+    return (<>
+      <Divider>Device metric configuration</Divider>
+      <Table<IDeviceMetricSettings> columns={columns} dataSource={deviceMetrics} />
+    </>)
+  }
 
   const populateJsonTemplateBuilder = () => (<>
     <Divider>JSON template builder</Divider>
@@ -426,7 +622,13 @@ function App() {
             key: 'json-path',
             label: 'JSON path',
             children: wrapTabContent(populateJsonPathBuilder())
-          }, {
+          },
+          {
+            key: 'device-metric',
+            label: 'Device metrics',
+            children: wrapTabContent(populateDeviceMetricConfiguration())
+          },
+          {
             key: 'json-template',
             label: 'JSON template',
             children: wrapTabContent(populateJsonTemplateBuilder())
