@@ -73,10 +73,10 @@ app.MapPost("/api/publish-batch-csv", async (IFormFile file) =>
 
 app.MapPost("/api/publish-batch-with-json-path", async (
     [FromForm] IFormFile file,
-    [FromForm] string payloadInfo) =>
+    [FromForm] string config) =>
 {
     var payloadStr = await ReadAsStringAsync(file);
-    await PublishBatchUsingSingleApi(payloadStr, payloadType: "payload_with_json_path", payloadInfo);
+    await PublishBatchUsingSingleApi(payloadStr, payloadType: "payload_with_json_path", config);
     return Results.NoContent();
 })
 .WithName("Publish batch with JSON path")
@@ -84,10 +84,10 @@ app.MapPost("/api/publish-batch-with-json-path", async (
 
 app.MapPost("/api/publish-batch-with-template", async (
     [FromForm] IFormFile file,
-    [FromForm] string payloadInfo) =>
+    [FromForm] string config) =>
 {
     var payloadStr = await ReadAsStringAsync(file);
-    await PublishBatchUsingSingleApi(payloadStr, payloadType: "payload_with_template", payloadInfo);
+    await PublishBatchUsingSingleApi(payloadStr, payloadType: "payload_with_template", config);
     return Results.NoContent();
 })
 .WithName("Publish batch with template")
@@ -185,7 +185,7 @@ async Task PublishBatchUsingPlaintextCsv(string csv)
     resp.EnsureSuccessStatusCode();
 }
 
-async Task PublishBatchUsingSingleApi(string payloadStr, string payloadType, string payloadInfo)
+async Task PublishBatchUsingSingleApi(string payloadStr, string payloadType, string config)
 {
     MqttPublishPayload batch = new()
     {
@@ -198,7 +198,7 @@ async Task PublishBatchUsingSingleApi(string payloadStr, string payloadType, str
             UserProperties = new Dictionary<string, string>()
             {
                 ["payload_type"] = payloadType,
-                ["payload_info"] = payloadInfo
+                ["config"] = config
             }
         }
     };
@@ -220,7 +220,7 @@ Dictionary<string, object> BuildRowBasedBatchPayload(int batchSize, int noOfMetr
         var arr = new object[batchSize];
         data[$"numeric_{m}"] = arr;
         for (int r = 0; r < batchSize; r++)
-            arr[r] = new object[] { currentUtc += 5000, Random.Shared.NextDouble(), 92 };
+            arr[r] = new object[] { currentUtc += 5000, Random.Shared.NextDouble(), 192 };
     }
     return dict;
 }
@@ -244,7 +244,7 @@ Dictionary<string, object> BuildColumnarBatchPayload(int batchSize, int noOfMetr
         {
             ts[r] = currentUtc += 5000;
             value[r] = Random.Shared.NextDouble();
-            quality[r] = 92;
+            quality[r] = 192;
         }
     }
     return dict;

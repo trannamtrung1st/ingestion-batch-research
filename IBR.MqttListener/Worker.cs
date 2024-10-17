@@ -133,7 +133,7 @@ public class Worker : BackgroundService
             var payload = e.ApplicationMessage.PayloadSegment.Array!;
             var payloadStr = Encoding.UTF8.GetString(payload);
             var payloadType = e.ApplicationMessage.UserProperties?.Find(p => p.Name == "payload_type");
-            var payloadInfo = e.ApplicationMessage.UserProperties?.Find(p => p.Name == "payload_info");
+            var config = e.ApplicationMessage.UserProperties?.Find(p => p.Name == "config");
 
             switch (payloadType?.Value)
             {
@@ -150,12 +150,12 @@ public class Worker : BackgroundService
                     }
                 case "payload_with_json_path":
                     {
-                        HandlePayloadWithJsonPath(payload, payloadInfo?.Value);
+                        HandlePayloadWithJsonPath(payload, config?.Value);
                         break;
                     }
                 case "payload_with_template":
                     {
-                        await HandlePayloadWithTemplate(payload, template: payloadInfo?.Value);
+                        await HandlePayloadWithTemplate(payload, template: config?.Value);
                         break;
                     }
             }
@@ -174,23 +174,28 @@ public class Worker : BackgroundService
         Console.WriteLine($"Single handled at {DateTime.UtcNow}");
     }
 
-    private static void HandlePayloadWithJsonPath(byte[] payload, string? payloadInfoStr)
+    private static void HandlePayloadWithJsonPath(byte[] payload, string? configStr)
     {
-        if (payloadInfoStr is null) return;
-        var payloadInfo = JsonSerializer.Deserialize<JsonPathPayloadInfo>(payloadInfoStr, options: _defaultJsonOptions)
-            ?? throw new ArgumentException(message: null, nameof(payloadInfoStr));
+        if (configStr is null) return;
+        var templateConfig = JsonSerializer.Deserialize<DeviceTemplateConfig>(configStr, options: _defaultJsonOptions)
+            ?? throw new ArgumentException(message: null, nameof(configStr));
         var jsonStr = Encoding.UTF8.GetString(payload);
         var rootNode = JsonNode.Parse(payload);
         var jPathContext = _jPathValueSystem.CreateContext();
 
+        var metrics = templateConfig.DeviceMetrics;
+        var deviceIdMetric = metrics.First(m => m.Type == "device_id");
+        var timestampMetric = metrics.First(m => m.Type == "timestamp");
+        var qualityMetric = metrics.FirstOrDefault(m => m.Type == "quality");
+        var otherMetrics = metrics.Where(m => m.Type == "metric").ToArray();
         var deviceId = jPathContext
-            .SelectNodes(obj: rootNode, expr: payloadInfo.DeviceId, resultor: (value, _) => (value as JsonValue)?.GetValue<string>())
+            .SelectNodes(obj: rootNode, expr: deviceIdMetric.Path, resultor: (value, _) => (value as JsonValue)?.GetValue<string>())
             .FirstOrDefault() ?? string.Empty;
 
-        void GetSeries(string? metricKey, string[]? metricKeys)
+        void GetSeries(DeviceMetricSettings? metric, string[]? flattenMetricKeys, string? flattenValuesPath)
         {
             var timestamps = jPathContext
-                .SelectNodes(obj: rootNode, expr: payloadInfo.Timestamp.Replace("{metric_key}", metricKey),
+                .SelectNodes(obj: rootNode, expr: timestampMetric.Path!.Replace("{metric_base}", metric?.BasePath),
                     resultor: (rawValue, _) =>
                     {
                         var value = (rawValue as JsonValue)?.GetUnderlyingValue();
@@ -210,15 +215,15 @@ public class Worker : BackgroundService
                 .ToArray();
 
             var values = jPathContext
-                .SelectNodes(obj: rootNode, expr: payloadInfo.Value.Replace("{metric_key}", metricKey),
+                .SelectNodes(obj: rootNode, expr: metric?.Path.Replace("{metric_base}", metric?.BasePath) ?? flattenValuesPath,
                     resultor: (value, _) => (value as JsonValue)?.GetUnderlyingValue())
                 .ToArray();
 
             int[]? qualities = null;
-            if (payloadInfo.Quality is not null)
+            if (qualityMetric?.Path is not null)
             {
                 qualities = jPathContext
-                    .SelectNodes(obj: rootNode, expr: payloadInfo.Quality.Replace("{metric_key}", metricKey),
+                    .SelectNodes(obj: rootNode, expr: qualityMetric.Path.Replace("{metric_base}", metric?.BasePath),
                         resultor: (value, _) => (value as JsonValue)?.GetValue<int>() ?? 0)
                     .ToArray();
             }
@@ -230,8 +235,9 @@ public class Worker : BackgroundService
                     var ts = timestamps[i];
                     var value = values[i];
                     var quality = qualities != null ? qualities[i] : default(int?);
+                    var metricKey = metric?.Key ?? flattenMetricKeys![i];
                     var series = new TimeSeries(
-                        deviceId, metricKey: metricKey ?? metricKeys?[i] ?? throw new Exception("Empty metric key"),
+                        deviceId, metricKey: metricKey ?? throw new Exception("Empty metric key"),
                         ts, value, quality);
                     Console.WriteLine(series);
                 }
@@ -242,19 +248,20 @@ public class Worker : BackgroundService
             }
         }
 
-        if (payloadInfo.Value.Contains("{metric_key}"))
+        var valuePaths = otherMetrics.Select(m => m.Path).Distinct().ToArray();
+        if (valuePaths.Length == 1 && !valuePaths[0].Contains("{metric_base}"))
         {
-            foreach (var mKey in payloadInfo.MetricKeys)
-                GetSeries(mKey, metricKeys: null);
-        }
-        else
-        {
-            var rawMetricKeys = jPathContext
-                .SelectNodes(obj: rootNode, expr: payloadInfo.MetricKey,
+            var flattenMetricKeys = jPathContext
+                .SelectNodes(obj: rootNode, expr: templateConfig.MetricKeysPath,
                     resultor: (value, _) => (value as string) ?? (value as JsonValue)?.GetValue<string>() ?? string.Empty)
                 .ToArray();
 
-            GetSeries(metricKey: null, rawMetricKeys);
+            GetSeries(metric: null, flattenMetricKeys, valuePaths[0]);
+        }
+        else
+        {
+            foreach (var metric in otherMetrics)
+                GetSeries(metric, flattenMetricKeys: null, flattenValuesPath: null);
         }
     }
 
