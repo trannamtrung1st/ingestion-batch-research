@@ -79,7 +79,7 @@ object GenerateGenericMetric()
     };
 
     for (var i = 0; i < BatchSize; i++)
-        records.Add(GenerateRecord("xVelocity", i, Base1));
+        records.Add(GenerateRecord("parent.xVelocity", i, Base1));
 
     for (var i = 0; i < BatchSize; i++)
         records.Add(GenerateRecord("zVelocity", i, Base2));
