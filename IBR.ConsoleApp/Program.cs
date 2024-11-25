@@ -3,8 +3,8 @@ using System.Text.Json;
 
 var jsonOpts = new JsonSerializerOptions(JsonSerializerDefaults.Web);
 const int BatchSize = 10;
-const int Base1 = 10;
-const int Base2 = 20;
+const int Base1 = 50;
+const int Base2 = 70;
 
 var payload = GenerateGenericMetric();
 var json = JsonSerializer.SerializeToUtf8Bytes(payload, options: jsonOpts);
@@ -17,8 +17,9 @@ object GenerateRowBased1()
 
     for (var i = 0; i < BatchSize; i++)
     {
-        dbl1.Add(new object[] { GenerateTimestamp(i), GenerateValue(Base1), GenerateQuality() });
-        dbl2.Add(new object[] { GenerateTimestamp(i), GenerateValue(Base2), GenerateQuality() });
+        var quality = GenerateQuality();
+        dbl1.Add(new object[] { GenerateTimestamp(i), GenerateValue(Base1), quality });
+        dbl2.Add(new object[] { GenerateTimestamp(i), GenerateValue(Base2), quality });
     }
 
     var payload = new
@@ -45,12 +46,13 @@ object GenerateColumnar1()
 
     for (var i = 0; i < BatchSize; i++)
     {
+        var quality = GenerateQuality();
         ts1.Add(GenerateTimestamp(i));
         ts2.Add(GenerateTimestamp(i));
         v1.Add(GenerateValue(Base1));
         v2.Add(GenerateValue(Base2));
-        q1.Add(GenerateQuality());
-        q2.Add(GenerateQuality());
+        q1.Add(quality);
+        q2.Add(quality);
     }
 
     var payload = new
@@ -70,19 +72,20 @@ object GenerateGenericMetric()
 {
     var records = new List<object>();
 
-    object GenerateRecord(string metricKey, int i, int baseValue) => new
+    object GenerateRecord(string metricKey, int i, int baseValue, int quality) => new
     {
         key = metricKey,
         ts = GenerateTimestamp(i),
         v = GenerateValue(baseValue),
-        q = GenerateQuality()
+        q = quality
     };
 
     for (var i = 0; i < BatchSize; i++)
-        records.Add(GenerateRecord("parent.xVelocity", i, Base1));
-
-    for (var i = 0; i < BatchSize; i++)
-        records.Add(GenerateRecord("zVelocity", i, Base2));
+    {
+        var quality = GenerateQuality();
+        records.Add(GenerateRecord("XVelocity", i, Base1, quality));
+        records.Add(GenerateRecord("ZVelocity", i, Base2, quality));
+    }
 
     var payload = new
     {
