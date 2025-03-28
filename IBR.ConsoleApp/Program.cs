@@ -44,31 +44,38 @@ object GenerateRowBased1()
 
 object GenerateColumnar1()
 {
-    var ts1 = new List<object>();
-    var ts2 = new List<object>();
-    var v1 = new List<object>();
-    var v2 = new List<object>();
-    var q1 = new List<object>();
-    var q2 = new List<object>();
+    var tsTemp = new List<double>();
+    var tsHum = new List<double>();
+    var tsLight = new List<double>();
+    var vTemp = new List<double>();
+    var vHum = new List<double>();
+    var vLight = new List<double>();
+    var qTemp = new List<int>();
+    var qHum = new List<int>();
+    var qLight = new List<int>();
 
     for (var i = 0; i < BatchSize; i++)
     {
         var quality = GenerateQuality();
-        ts1.Add(GenerateTimestamp(i));
-        ts2.Add(GenerateTimestamp(i));
-        v1.Add(GenerateValue(Base1));
-        v2.Add(GenerateValue(Base2));
-        q1.Add(quality);
-        q2.Add(quality);
+        tsTemp.Add(GenerateTimestamp(i));
+        tsHum.Add(GenerateTimestamp(i));
+        tsLight.Add(GenerateTimestamp(i));
+        vTemp.Add(GenerateValue(Base1));
+        vHum.Add(GenerateValue(Base2));
+        vLight.Add(GenerateValue(Base3));
+        qTemp.Add(quality);
+        qHum.Add(quality);
+        qLight.Add(quality);
     }
 
     var payload = new
     {
-        deviceId = "dev01",
+        deviceId = "batch-device-1",
         data = new
         {
-            xVelocity = new[] { ts1, v1, q1 },
-            zVelocity = new[] { ts2, v2, q2 },
+            temp = new object[] { tsTemp, vTemp, qTemp },
+            hum = new object[] { tsHum, vHum, qHum },
+            light = new object[] { tsLight, vLight, qLight },
         }
     };
 
@@ -90,13 +97,14 @@ object GenerateGenericMetric()
     for (var i = 0; i < BatchSize; i++)
     {
         var quality = GenerateQuality();
-        records.Add(GenerateRecord("XVelocity", i, Base1, quality));
-        records.Add(GenerateRecord("ZVelocity", i, Base2, quality));
+        records.Add(GenerateRecord("temp", i, Base1, quality));
+        records.Add(GenerateRecord("hum", i, Base2, quality));
+        records.Add(GenerateRecord("light", i, Base3, quality));
     }
 
     var payload = new
     {
-        deviceId = "dev01",
+        deviceId = "batch-device-1",
         data = records
     };
 
