@@ -1,34 +1,41 @@
 ﻿
 using System.Text.Json;
 
-var jsonOpts = new JsonSerializerOptions(JsonSerializerDefaults.Web);
-const int BatchSize = 10;
+var jsonOpts = new JsonSerializerOptions(JsonSerializerDefaults.Web)
+{
+    WriteIndented = true
+};
+const int BatchSize = 3;
 const int Base1 = 50;
 const int Base2 = 70;
+const int Base3 = 100;
 
-var payload = GenerateGenericMetric();
+var payload = GenerateRowBased1();
 var json = JsonSerializer.SerializeToUtf8Bytes(payload, options: jsonOpts);
 File.WriteAllBytes("payload.json", json);
 
 object GenerateRowBased1()
 {
-    var dbl1 = new List<object>();
-    var dbl2 = new List<object>();
+    var temp = new List<object>();
+    var hum = new List<object>();
+    var light = new List<object>();
 
     for (var i = 0; i < BatchSize; i++)
     {
         var quality = GenerateQuality();
-        dbl1.Add(new object[] { GenerateTimestamp(i), GenerateValue(Base1), quality });
-        dbl2.Add(new object[] { GenerateTimestamp(i), GenerateValue(Base2), quality });
+        temp.Add(new object[] { GenerateTimestamp(i), GenerateValue(Base1), quality });
+        hum.Add(new object[] { GenerateTimestamp(i), GenerateValue(Base2), quality });
+        light.Add(new object[] { GenerateTimestamp(i), GenerateValue(Base3), quality });
     }
 
     var payload = new
     {
-        deviceId = "dev01",
+        deviceId = "batch-device-1",
         data = new
         {
-            xVelocity = dbl1,
-            zVelocity = dbl2,
+            temp,
+            hum,
+            light,
         }
     };
 
@@ -96,11 +103,13 @@ object GenerateGenericMetric()
     return payload;
 }
 
-long GenerateTimestamp(int plusSec)
+long GenerateTimestamp(int minusMin)
 {
-    return DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + plusSec * 1000;
+    var ts = DateTimeOffset.UtcNow.AddMinutes(-minusMin);
+    ts.AddSeconds(-ts.Second);
+    return ts.ToUnixTimeMilliseconds();
 }
 
-double GenerateValue(int baseValue) => baseValue + Random.Shared.NextDouble();
+double GenerateValue(int baseValue) => baseValue + Random.Shared.NextDouble() * 5;
 
 int GenerateQuality() => Random.Shared.NextDouble() > 0.5 ? 192 : 0;
